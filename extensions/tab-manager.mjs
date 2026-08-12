@@ -1,4 +1,3 @@
-import { basename } from "node:path";
 import { appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -124,16 +123,11 @@ export class TabManager {
     mode.__tabManager = manager;
 
     const session = mode.runtimeHost.session;
-    let name;
-    try {
-      name =
-        session.sessionManager?.getSessionName?.() ||
-        basename(mode.runtimeHost.cwd ?? process.cwd()) ||
-        "tab 1";
-    } catch {
-      name = "tab 1";
-    }
-    manager.addTab(session, { name, draft: mode.editor?.getText?.() ?? "", boundBefore: true });
+    // Adopt the existing foreground Pi AgentSession as the single initial tab.
+    // No new session is created here; the tab is labeled "Main" and Pi's own
+    // session name/transcript/editor are left untouched, so normal startup
+    // behavior is unchanged. Only /tabnew creates an additional session/tab.
+    manager.addTab(session, { name: "Main", draft: mode.editor?.getText?.() ?? "", boundBefore: true });
 
     manager.setBar(
       createTabBar({
