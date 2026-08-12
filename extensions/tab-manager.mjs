@@ -144,16 +144,10 @@ export class TabManager {
       }),
     );
 
-    manager._origSubmit = mode.defaultEditor.onSubmit;
-    mode.defaultEditor.onSubmit = async (text) => {
-      const cmd = parseTabCommand(text);
-      if (cmd) {
-        await handleTabCommand(manager, cmd);
-        return;
-      }
-      return manager._origSubmit(text);
-    };
-
+    // Tab commands (/tabnew, /tabclose, /tabrename) are registered as Pi slash
+    // commands in commands.mjs via pi.registerCommand. Pi dispatches them through
+    // prompt() -> _tryExecuteExtensionCommand, so we no longer intercept onSubmit
+    // here (doing so would preempt that path and make the registered handler dead).
     manager._unsubAlt = mode.ui?.addInputListener?.(makeAltArrowListener(mode, manager));
 
     if (process.env.PI_SESSION_TABS_DEBUG) {
@@ -176,7 +170,6 @@ export class TabManager {
     this.bar = undefined; // installed by attach (Task 10 wiring) via setBar
     this._unsubAlt = undefined;
     this._chain = Promise.resolve();
-    this._origSubmit = undefined;
     // Pi swaps runtimeHost.session before invoking its rebind callback. Keep
     // the last known foreground identity so replacement reconciliation can
     // distinguish the outgoing session from the incoming one.
