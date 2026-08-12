@@ -206,6 +206,37 @@ export class TabManager {
     this.updateBar();
   }
 
+  onForegroundChanged(prev, next) {
+    if (prev === next) return;
+    this._applyDrafts(prev, next);
+    let nextTab = this.findBySession(next);
+    if (!nextTab) {
+      const name = next.sessionManager?.getSessionName?.() || `tab ${this.tabs.length + 1}`;
+      nextTab = this.addTab(next, { name });
+    }
+    this.activeIndex = this.tabs.indexOf(nextTab);
+    this.updateBar();
+  }
+
+  onSessionDisposed(session) {
+    const tab = this.findBySession(session);
+    if (tab) this.removeTab(tab);
+  }
+
+  shutdown() {
+    this.shuttingDown = true;
+    this._unsubAlt?.();
+    const active = this.runtime.session;
+    for (const tab of [...this.tabs]) {
+      if (tab.session === active) continue;
+      try {
+        tab.session.dispose();
+      } catch {
+        /* best effort */
+      }
+    }
+  }
+
   setBar(bar) {
     this.bar = bar;
     this.updateBar();

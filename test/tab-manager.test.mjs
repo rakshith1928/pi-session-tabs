@@ -226,3 +226,47 @@ test("renameActive persists via setSessionName and updates label", () => {
   m.renameActive("");
   assert.equal(mode._status, undefined, "no-op without a name");
 });
+
+test("onForegroundChanged registers runtime replacements as new tabs", () => {
+  const sA = stubSession("A");
+  const sR = stubSession("R"); // replacement from /new, /resume, /fork, /reload
+  sR.sessionManager = { getSessionName: () => "replaced" };
+  const mode = stubMode(sA);
+  const m = new TabManager({ mode });
+  m.addTab(sA, { name: "a", draft: "draft-a" });
+  m.onForegroundChanged(sA, sR);
+  assert.equal(m.tabs.length, 2);
+  assert.equal(m.tabs[1].name, "replaced");
+  assert.equal(m.activeIndex, 1);
+});
+
+test("onSessionDisposed removes the tab", () => {
+  const sA = stubSession("A");
+  const sB = stubSession("B");
+  const mode = stubMode(sA);
+  const m = new TabManager({ mode });
+  m.addTab(sA, { name: "a" });
+  m.addTab(sB, { name: "b" });
+  m.activeIndex = 1;
+  m.onSessionDisposed(sB);
+  assert.equal(m.tabs.length, 1);
+  assert.equal(m.activeIndex, 0);
+  assert.equal(m.tabs[0].session, sA);
+});
+
+test("shutdown disposes background tabs and silences updates", () => {
+  const sA = stubSession("A");
+  const sB = stubSession("B");
+  const disposed = [];
+  const mode = stubMode(sA);
+  const m = new TabManager({ mode });
+  m.addTab(sA, { name: "a" });
+  m.addTab(sB, { name: "b" });
+  sB.dispose = () => disposed.push("B");
+  m.shutdown();
+  assert.deepEqual(disposed, ["B"], "background disposed, active kept (runtime disposes it)");
+  assert.equal(m.shuttingDown, true);
+  const bar = { update: () => { throw new Error("should not update after shutdown"); } };
+  m.setBar(bar);
+  m.updateBar(); // must no-op via shuttingDown guard
+});
