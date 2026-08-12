@@ -154,6 +154,7 @@ export class TabManager {
     if (i === -1) return;
     tab.unsubscribe?.();
     this.tabs.splice(i, 1);
+    if (this.activeIndex > i) this.activeIndex -= 1;
     if (this.activeIndex >= this.tabs.length) this.activeIndex = Math.max(0, this.tabs.length - 1);
     this.updateBar();
   }

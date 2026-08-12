@@ -78,6 +78,21 @@ test("removeTab unsubscribes and updates activeIndex bounds", () => {
   assert.equal(m.activeIndex, 0);
 });
 
+test("removeTab preserves the active tab when removing a preceding tab", () => {
+  const sA = stubSession("A");
+  const sB = stubSession("B");
+  const sC = stubSession("C");
+  const mode = stubMode(sA);
+  const m = new TabManager({ mode });
+  const tabA = m.addTab(sA, { name: "a" });
+  m.addTab(sB, { name: "b" });
+  const tabC = m.addTab(sC, { name: "c" });
+  m.activeIndex = 2;
+  m.removeTab(tabA);
+  assert.equal(m.activeIndex, 1);
+  assert.equal(m.tabs[m.activeIndex], tabC);
+});
+
 test("parseTabCommand recognizes only the three tab commands", () => {
   assert.deepEqual(parseTabCommand("/tabnew"), { command: "tabnew" });
   assert.deepEqual(parseTabCommand("/tabnew my session"), { command: "tabnew", name: "my session" });
