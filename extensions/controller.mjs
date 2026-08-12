@@ -5,6 +5,7 @@
  * live TabManager keeps working across reloads.
  */
 import { installPatches } from "./patches.mjs";
+import { TabManager, handleTabCommand } from "./tab-manager.mjs";
 
 export const CONTROLLER_KEY = Symbol.for("pi.sessionTabs.controller");
 
@@ -21,7 +22,29 @@ export class SessionTabsController {
     return this.manager ? this.manager.isForeground(sessionId) : true;
   }
 
-  // ensureManager(mode) and handleTabCommand(cmd) are implemented in Task 10.
+  ensureManager(mode) {
+    if (this.mode === mode && this.manager) return this.manager;
+    if (!this.tui) {
+      console.warn("pi-session-tabs: TUI classes unavailable; tabs disabled.");
+      return null;
+    }
+    if (!mode || !mode.documentContainer || !mode.defaultEditor || !mode.ui?.addInputListener) {
+      console.warn("pi-session-tabs: TUI wiring unavailable; tabs disabled for this mode.");
+      return null;
+    }
+    if (this.InteractiveMode && !(mode instanceof this.InteractiveMode)) {
+      console.warn("pi-session-tabs: mode is not an InteractiveMode instance; tabs disabled.");
+      return null;
+    }
+    this.mode = mode;
+    this.manager = TabManager.attach(mode, { Container: this.tui.Container, Text: this.tui.Text });
+    return this.manager;
+  }
+
+  async handleTabCommand(cmd) {
+    if (!this.manager) return;
+    await handleTabCommand(this.manager, cmd);
+  }
 }
 
 export function getController() {

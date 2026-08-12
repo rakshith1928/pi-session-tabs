@@ -1,3 +1,19 @@
+import { basename } from "node:path";
+import { createTabBar } from "./tab-bar.mjs";
+
+const ALT_LEFT_RE = /^\x1b\[1;3(?::\d+)?D$/;
+const ALT_RIGHT_RE = /^\x1b\[1;3(?::\d+)?C$/;
+
+export async function handleTabCommand(manager, cmd) {
+  try {
+    if (cmd.command === "tabnew") await manager.createTab(cmd.name);
+    else if (cmd.command === "tabclose") await manager.closeActive();
+    else if (cmd.command === "tabrename") manager.renameActive(cmd.name);
+  } catch (err) {
+    manager.mode.showStatus?.(`Tab command failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 /** Per-tab state machine driven purely by session events. */
 export function parseTabCommand(text) {
   const t = (text ?? "").trim();
@@ -24,6 +40,54 @@ export function hasOverlay(mode) {
 }
 
 export class TabManager {
+  static attach(mode, { Container, Text }) {
+    const manager = new TabManager({ mode });
+    mode.__tabManager = manager;
+
+    const session = mode.runtimeHost.session;
+    let name;
+    try {
+      name =
+        session.sessionManager?.getSessionName?.() ||
+        basename(mode.runtimeHost.cwd ?? process.cwd()) ||
+        "tab 1";
+    } catch {
+      name = "tab 1";
+    }
+    manager.addTab(session, { name, draft: mode.editor?.getText?.() ?? "", boundBefore: true });
+
+    manager.setBar(
+      createTabBar({
+        Container,
+        Text,
+        theme: mode.createExtensionUIContext().theme,
+        documentContainer: mode.documentContainer,
+        requestRender: () => mode.ui?.requestRender?.(),
+      }),
+    );
+
+    manager._origSubmit = mode.defaultEditor.onSubmit;
+    mode.defaultEditor.onSubmit = async (text) => {
+      const cmd = parseTabCommand(text);
+      if (cmd) {
+        await handleTabCommand(manager, cmd);
+        return;
+      }
+      return manager._origSubmit(text);
+    };
+
+    manager._unsubAlt = mode.ui?.addInputListener?.((data) => {
+      const isLeft = ALT_LEFT_RE.test(data);
+      const isRight = ALT_RIGHT_RE.test(data);
+      if (!isLeft && !isRight && data !== "\x1bb" && data !== "\x1bf") return undefined;
+      if (hasOverlay(mode)) return undefined;
+      void manager.cycle(isLeft || data === "\x1bb" ? -1 : +1);
+      return { consume: true };
+    });
+
+    return manager;
+  }
+
   constructor({ mode }) {
     this.mode = mode;
     this.runtime = mode.runtimeHost;

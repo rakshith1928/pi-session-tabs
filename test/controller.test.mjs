@@ -8,6 +8,33 @@ import {
   makeHooks,
   checkVersion,
 } from "../extensions/controller.mjs";
+import { TabManager, handleTabCommand } from "../extensions/tab-manager.mjs";
+
+function fakeMode({ sessionId = "s0" } = {}) {
+  const session = {
+    sessionId,
+    isStreaming: false,
+    subscribe: () => () => {},
+  };
+  const editor = {
+    text: "",
+    getText() { return this.text; },
+    setText(t) { this.text = t; },
+    onSubmit: async () => {},
+  };
+  return {
+    runtimeHost: { session, cwd: "/proj" },
+    ui: {
+      requestRender() {},
+      addInputListener(fn) { this._listener = fn; return () => { this._listener = undefined; }; },
+    },
+    editor,
+    defaultEditor: editor,
+    documentContainer: { children: [] },
+    createExtensionUIContext: () => ({ theme: { fg: (c, s) => s } }),
+    showStatus() {},
+  };
+}
 
 test("getController returns a singleton per realm", () => {
   delete globalThis[CONTROLLER_KEY];
@@ -73,4 +100,71 @@ test("checkVersion warns on mismatch, silent on match or failure", async () => {
   assert.ok(warnings[0].includes("9.9.9"));
   await checkVersion({ warn, resolve: async () => { throw new Error("unresolvable"); } });
   assert.equal(warnings.length, 1, "failure is silent (guards are the real safety)");
+});
+
+test("ensureManager wires a stub mode once (bar, submit wrap, alt listener, initial tab)", () => {
+  delete globalThis[CONTROLLER_KEY];
+  const c = getController();
+  c.tui = {
+    Container: class {
+      constructor() { this.children = []; }
+      addChild(child) { this.children.push(child); }
+    },
+    Text: class {
+      constructor(value) { this.value = value; }
+      setText(value) { this.value = value; }
+    },
+  };
+  class FakeInteractiveMode {}
+  c.InteractiveMode = FakeInteractiveMode;
+  const mode = fakeMode();
+  Object.setPrototypeOf(mode, FakeInteractiveMode.prototype);
+  const m1 = c.ensureManager(mode);
+  assert.ok(m1 instanceof TabManager);
+  assert.equal(m1, c.manager);
+  assert.equal(mode.__tabManager, m1);
+  assert.equal(m1.tabs.length, 1);
+  assert.equal(m1.tabs[0].name, "proj");
+  assert.equal(mode.documentContainer.children.length, 1, "tab bar installed");
+  assert.equal(typeof mode.defaultEditor.onSubmit, "function", "submit wrapped");
+  assert.equal(typeof mode.ui._listener, "function", "alt listener registered");
+  const m2 = c.ensureManager(mode);
+  assert.equal(m2, m1, "idempotent for the same mode");
+  delete globalThis[CONTROLLER_KEY];
+});
+
+test("ensureManager skips non-TUI modes and foreign InteractiveMode instances", () => {
+  delete globalThis[CONTROLLER_KEY];
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (m) => warns.push(m);
+  try {
+    const c = getController();
+    c.tui = { Container: class {}, Text: class {} };
+    c.InteractiveMode = class {};
+    assert.equal(c.ensureManager({}), null, "no TUI wiring → skip");
+    assert.equal(c.ensureManager({ documentContainer: { children: [] }, defaultEditor: {}, ui: {} }), null);
+    const mode = fakeMode();
+    assert.equal(c.ensureManager(mode), null, "foreign InteractiveMode → skip");
+    assert.ok(warns.length >= 1);
+  } finally {
+    console.warn = origWarn;
+    delete globalThis[CONTROLLER_KEY];
+  }
+});
+
+test("handleTabCommand routes through the controller to the manager", async () => {
+  delete globalThis[CONTROLLER_KEY];
+  const c = getController();
+  const calls = [];
+  c.manager = {
+    createTab: async (n) => calls.push(["create", n]),
+    closeActive: async () => calls.push(["close"]),
+    renameActive: (n) => calls.push(["rename", n]),
+  };
+  await c.handleTabCommand({ command: "tabnew", name: "x" });
+  await c.handleTabCommand({ command: "tabclose" });
+  await c.handleTabCommand({ command: "tabrename", name: "y" });
+  assert.deepEqual(calls, [["create", "x"], ["close"], ["rename", "y"]]);
+  delete globalThis[CONTROLLER_KEY];
 });
