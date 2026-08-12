@@ -5,7 +5,7 @@
 // before the first init() call.
 import { AgentSessionRuntime, AgentSession, InteractiveMode, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { ensurePatched, getController, checkVersion } from "./controller.mjs";
+import { ensurePatched, checkVersion } from "./controller.mjs";
 
 const controller = ensurePatched({ AgentSessionRuntime, AgentSession, InteractiveMode, SessionManager });
 controller.tui = { Container, Text };

@@ -1,5 +1,5 @@
 /**
- * Additive, existence-guarded prototype patches for Pi 0.84.1.
+ * Additive prototype patches for Pi 0.84.1 with snapshot-based installation and restoration.
  * All patch factories are pure: they take the original method (or dependencies)
  * and return the replacement, so tests never touch real Pi classes.
  * New members are namespaced (__piSessionTabs*) to avoid clashing with future

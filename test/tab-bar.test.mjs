@@ -19,7 +19,6 @@ test("formatTabs truncates to width with ellipsis", () => {
 });
 
 test("createTabBar installs container first in documentContainer and updates text", () => {
-  let textValue = "";
   const FakeContainer = class {
     constructor() {
       this.children = [];
@@ -53,11 +52,13 @@ test("createTabBar installs container first in documentContainer and updates tex
     [
       { name: "a", state: "idle" },
       { name: "b", state: "running" },
+      { name: "c", state: "needs_attention" },
     ],
     0,
   );
   assert.ok(bar.text.value.includes("<accent>[<muted>○</muted> a]</accent>"));
   assert.ok(bar.text.value.includes("<muted> <text>●</text> b </muted>"));
+  assert.ok(bar.text.value.includes("<muted> <warning>⚠</warning> c </muted>"));
   assert.ok(bar.text.value.includes("<text>●</text>"));
   assert.equal(renders, 1);
 });
