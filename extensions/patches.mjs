@@ -44,9 +44,46 @@ export function makeCreateTabSession(SessionManager) {
 }
 
 /**
+ * Wrap AgentSession.bindExtensions. First bind behaves exactly like the original
+ * (emits session_start, rediscovers resources). Re-attach rebinds uiContext /
+ * commandContextActions / handlers but suppresses the startup emit and resource
+ * rediscovery (which would churn a background session's system prompt per switch).
+ */
+export function makeBindExtensionsWrapper(orig, { onBindExtensions } = {}) {
+  return async function bindExtensions(bindings) {
+    const self = this;
+    const first = !self.__tabsFirstBind;
+    self.__tabsFirstBind = true;
+    if (first) {
+      await orig.call(self, bindings);
+    } else {
+      for (let i = 0; i < BIND_FIELDS.length; i++) {
+        if (bindings[BIND_FIELDS[i]] !== undefined) {
+          self[BIND_PRIVATE[i]] = bindings[BIND_FIELDS[i]];
+        }
+      }
+      await self._applyExtensionBindings(self._extensionRunner);
+    }
+    onBindExtensions?.(self, first);
+  };
+}
+
+/** Wrap AgentSession.dispose: run original, then notify (registry cleanup). */
+export function makeDisposeWrapper(orig, { onSessionDisposed } = {}) {
+  return function dispose() {
+    try {
+      orig.call(this);
+    } finally {
+      onSessionDisposed?.(this);
+    }
+  };
+}
+
+/**
  * Apply additive patches. `hooks` dispatch events to the TabManager layer.
- * Existence-guarded: a missing member skips its patch (tabs degrade gracefully).
- * New members are always (re)defined; existing members are recorded for restore().
+ * Safe by snapshot: every patched member is recorded before install, so
+ * restore() can delete members that were absent pre-install (namespaced
+ * additions) and reinstate pre-existing Pi members via defineProperty.
  */
 export function installPatches({ AgentSessionRuntime, AgentSession, InteractiveMode, SessionManager, hooks = {} }) {
   const originals = [];
@@ -63,6 +100,12 @@ export function installPatches({ AgentSessionRuntime, AgentSession, InteractiveM
 
   apply(AgentSessionRuntime, "__piSessionTabsAttachSession", makeAttachSession());
   apply(AgentSessionRuntime, "__piSessionTabsCreateTabSession", makeCreateTabSession(SessionManager));
+
+  const { onBindExtensions, onSessionDisposed } = hooks;
+  const bindExtensionsWrapper = makeBindExtensionsWrapper(AgentSession.prototype.bindExtensions, { onBindExtensions });
+  apply(AgentSession, "bindExtensions", bindExtensionsWrapper);
+  const disposeWrapper = makeDisposeWrapper(AgentSession.prototype.dispose, { onSessionDisposed });
+  apply(AgentSession, "dispose", disposeWrapper);
 
   return {
     restore() {
