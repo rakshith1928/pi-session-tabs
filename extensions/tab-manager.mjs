@@ -1,4 +1,28 @@
 /** Per-tab state machine driven purely by session events. */
+export function parseTabCommand(text) {
+  const t = (text ?? "").trim();
+  if (!t.startsWith("/tab")) return null;
+  if (t === "/tabnew" || t.startsWith("/tabnew ")) {
+    const name = t.slice("/tabnew".length).trim();
+    return { command: "tabnew", ...(name ? { name } : {}) };
+  }
+  if (t === "/tabclose") return { command: "tabclose" };
+  if (t === "/tabrename" || t.startsWith("/tabrename ")) {
+    const name = t.slice("/tabrename".length).trim();
+    return name ? { command: "tabrename", name } : { command: "tabrename" };
+  }
+  return null;
+}
+
+export function hasOverlay(mode) {
+  return Boolean(
+    mode.extensionSelector ||
+      mode.extensionInput ||
+      mode.extensionEditor ||
+      mode.activeSelectorToken,
+  ) || mode.editor !== mode.defaultEditor;
+}
+
 export class TabManager {
   constructor({ mode }) {
     this.mode = mode;
@@ -10,6 +34,99 @@ export class TabManager {
     this._unsubAlt = undefined;
     this._chain = Promise.resolve();
     this._origSubmit = undefined;
+  }
+
+  _enqueue(fn) {
+    const run = this._chain.then(fn);
+    this._chain = run.catch(() => {});
+    return run;
+  }
+
+  async createTab(name) {
+    const result = await this.runtime.__piSessionTabsCreateTabSession();
+    const session = result.session;
+    const tab = this.addTab(session, { name });
+    if (name) {
+      try {
+        session.setSessionName(name);
+      } catch {
+        /* name is cosmetic; ignore */
+      }
+    }
+    await this.activate(this.tabs.indexOf(tab));
+  }
+
+  async activate(index) {
+    return this._enqueue(async () => {
+      if (index === this.activeIndex || index < 0 || index >= this.tabs.length) return;
+      const target = this.tabs[index];
+      const prev = this.runtime.session;
+      try {
+        await this.runtime.__piSessionTabsAttachSession(target.session);
+      } catch (err) {
+        try {
+          await this.runtime.__piSessionTabsAttachSession(prev);
+        } catch {
+          /* restore failed; registry still consistent via hooks */
+        }
+        this.mode.showStatus?.(`Tab switch failed: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+      }
+      this.activeIndex = index;
+      this._applyDrafts(prev, target.session);
+      this.updateBar();
+    });
+  }
+
+  _applyDrafts(prevSession, nextSession) {
+    const prevTab = this.findBySession(prevSession);
+    if (prevTab && this.mode.editor) prevTab.draft = this.mode.editor.getText();
+    const nextTab = this.findBySession(nextSession);
+    if (nextTab && this.mode.editor) {
+      nextTab.draft ??= "";
+      this.mode.editor.setText(nextTab.draft);
+    }
+  }
+
+  async cycle(dir) {
+    const n = this.tabs.length;
+    if (n < 2) return;
+    await this.activate((this.activeIndex + dir + n) % n);
+  }
+
+  async closeActive() {
+    if (this.tabs.length <= 1) {
+      this.mode.showStatus?.("Cannot close the last tab");
+      return;
+    }
+    const idx = this.activeIndex;
+    const closing = this.tabs[idx];
+    const neighbor = this.tabs[idx === this.tabs.length - 1 ? idx - 1 : idx + 1];
+    await this.activate(this.tabs.indexOf(neighbor));
+    try {
+      closing.session.dispose();
+    } catch (err) {
+      this.mode.showStatus?.(`Error closing tab: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (this.tabs.includes(closing)) this.removeTab(closing);
+    this.updateBar();
+  }
+
+  renameActive(name) {
+    if (!name) {
+      this.mode.showStatus?.("Usage: /tabrename <name>");
+      return;
+    }
+    const tab = this.tabs[this.activeIndex];
+    if (!tab) return;
+    try {
+      tab.session.setSessionName(name);
+    } catch (err) {
+      this.mode.showStatus?.(`Rename failed: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    tab.name = name;
+    this.updateBar();
   }
 
   addTab(session, { name, draft = "", boundBefore = false } = {}) {
