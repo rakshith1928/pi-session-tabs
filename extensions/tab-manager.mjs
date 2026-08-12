@@ -269,6 +269,9 @@ export class TabManager {
     }
     const tab = this.tabs[this.activeIndex];
     if (!tab) return;
+    // Mark the override first so the session_info_changed that setSessionName
+    // emits does not try to re-adopt a (now identical) title later.
+    tab.userRenamed = true;
     try {
       tab.session.setSessionName(name);
     } catch (err) {
@@ -286,6 +289,11 @@ export class TabManager {
       session,
       state: session.isStreaming ? "running" : "idle",
       draft,
+      // A name we were explicitly given (Main, /tabnew <name>, or a resumed
+      // session's existing name) is a user override: we must not let a later
+      // session_info_changed (e.g. Pi's auto-generated conversation title)
+      // silently replace it. Tabs created with no name adopt the title later.
+      userRenamed: name !== undefined,
       unsubscribe: undefined,
     };
     if (boundBefore) session.__tabsFirstBind = true;
@@ -347,6 +355,12 @@ export class TabManager {
         break;
       case "compaction_end":
         if (tab.state !== "needs_attention") tab.state = "idle";
+        break;
+      case "session_info_changed":
+        // Pi (or /name) changed the session name. Adopt it only for tabs we
+        // created without an explicit name; user-named tabs (Main, /tabnew
+        // <name>, /tabrename) keep their override.
+        if (!tab.userRenamed && event.name) tab.name = event.name;
         break;
       default:
         return;

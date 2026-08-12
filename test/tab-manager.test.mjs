@@ -324,6 +324,41 @@ test("renameActive persists via setSessionName and updates label", () => {
   assert.equal(mode._status, undefined, "no-op without a name");
 });
 
+test("session_info_changed adopts Pi's generated title for an unnamed tab", () => {
+  const s = stubSession("s1");
+  const mode = stubMode(s);
+  const m = new TabManager({ mode });
+  const tab = m.addTab(s, {}); // no name → adopt later
+  assert.equal(tab.name, "tab 1");
+  assert.equal(tab.userRenamed, false);
+  s._emit({ type: "session_info_changed", name: "Research" });
+  assert.equal(tab.name, "Research", "adopts generated title");
+  assert.equal(m.tabs[m.activeIndex].name, "Research", "bar updated");
+});
+
+test("session_info_changed is ignored for a user-named tab", () => {
+  const s = stubSession("s1");
+  const mode = stubMode(s);
+  const m = new TabManager({ mode });
+  const tab = m.addTab(s, { name: "Backend" });
+  assert.equal(tab.userRenamed, true);
+  s._emit({ type: "session_info_changed", name: "WrongTitle" });
+  assert.equal(tab.name, "Backend", "override preserved");
+});
+
+test("renameActive override survives a later session_info_changed", () => {
+  const s = stubSession("s1");
+  s.setSessionName = () => {};
+  const mode = stubMode(s);
+  const m = new TabManager({ mode });
+  const tab = m.addTab(s, {}); // adopt-later
+  m.renameActive("Pinned");
+  assert.equal(tab.userRenamed, true);
+  assert.equal(tab.name, "Pinned");
+  s._emit({ type: "session_info_changed", name: "AutoTitle" });
+  assert.equal(tab.name, "Pinned", "override wins over auto title");
+});
+
 test("onForegroundChanged registers runtime replacements as new tabs", () => {
   const sA = stubSession("A");
   const sR = stubSession("R"); // replacement from /new, /resume, /fork, /reload
