@@ -177,32 +177,41 @@ return result.session;   // NOT attached yet
 **Placement:** a dedicated `tabBarContainer` (a `Container` with a horizontal row layout) inserted as the **first child of `documentContainer`**, i.e. a full-width row **above** the existing `headerContainer` (logo/hints row stays as-is). This survives `resetExtensionUI()` (which only mutates extension chrome, never `documentContainer` children) and every rebind.
 
 **Rendering** (theme-aware, no animation):
-- One segment per tab: `‹glyph› name`; segments separated by `│`.
-- **Active tab:** highlighted (inverted / accent from the active theme's palette).
-- **Name truncation:** clip to a max width with `…`; total bar width = terminal width.
+- Built from Pi's native primitives: an `HStack` of per-tab `Box`es (each containing a
+  `TruncatedText` label) plus a `+` new-tab `Box`. `HStack` owns width allocation
+  (`basis:"auto"` + `shrink` + `minSize`), so tabs size to their name and shrink
+  safely when space is tight; `TruncatedText` keeps each label on a single line.
+- **Active tab:** filled with the theme `accent` background; inactive tabs are subdued
+  (no fill).
 - **Status glyph** (per-tab, §9/§10):
   - `○` idle
-  - `●` running (no spinner animation — glyph flips on state change only, then `ui.requestRender()`)
+  - `●` running (glyph flips on state change only, then `ui.requestRender()`)
   - `⚠` awaiting/attention (derived, §10)
+- Each non-new tab shows a `×` close control; the new-tab box shows `+`.
 - A subtle separator line between the tab bar and the header row (optional, theme color).
 
 **Refreshing:** state changes from per-tab subscriptions call `tabBar.invalidate()` + `ui.requestRender()`. Theme changes re-render via the existing theme hook (no extra wiring).
 
-**Interaction:** the bar itself handles no keys; Alt+Left/Right is intercepted at the TUI raw-input level (§8). Optional mouse support is out of scope.
+**Interaction:** native keyboard only — there is **no focus mode** (intentionally not
+implemented: Pi 0.84.1 binds every clean key, so no free key exists for a tab-navigation
+toggle). Tabs are cycled with Alt+Left/Right intercepted at the TUI raw-input level (§8),
+and `/tabnew` `/tabclose` `/tabrename` are registered Pi slash commands (§7). **Mouse
+clicks are NOT a Pi 0.84.1 native capability** (the `Component` interface is render +
+optional keyboard only) and are deferred to a future OSC8-link enhancement (not shipped
+in V1).
 
 ---
 
 ## 7. `/tabnew`, `/tabclose`, `/tabrename`
 
-Intercepted in a wrapper around `defaultEditor.onSubmit`, installed by TabManager **before** the original handler runs:
+Registered as Pi slash commands via `registerTabCommands` (commands.mjs); Pi dispatches
+them through `prompt()` → `_tryExecuteExtensionCommand` **before** the editor sees input:
 
 ```js
-const origSubmit = mode.defaultEditor.onSubmit;
-mode.defaultEditor.onSubmit = async (text) => {
-  const trimmed = text.trim();
-  if (trimmed.startsWith("/tab")) { /* handle; return */ }
-  return origSubmit(trimmed);   // everything else unchanged
-};
+// commands.mjs — delegate each handler to the controller's manager
+pi.registerCommand("tabnew",  { description: "…", handler: async (args) => getController().handleTabCommand("/tabnew " + args) });
+pi.registerCommand("tabclose", { description: "…", handler: async () => getController().handleTabCommand("/tabclose") });
+pi.registerCommand("tabrename", { description: "…", getArgumentCompletions: suggestTabNames, handler: async (args) => getController().handleTabCommand("/tabrename " + args) });
 ```
 
 The original handler is untouched, so all existing commands, extension commands, `!` bash, compaction queueing, and streaming-steer routing keep working (they dereference `this.session` dynamically → target the active tab).
@@ -378,7 +387,7 @@ AgentSession.prototype.bindExtensions = async function (bindings) {
 
 - Restoring a full tab set across restarts.
 - Per-tab editor drafts, scrollback, and extension chrome.
-- Mouse support on the tab bar.
+- Mouse support on the tab bar (deferred OSC8-link hack; not in V1).
 - Tab drag/reorder; tab overflow menu.
 
 ## Open questions for review
@@ -489,8 +498,9 @@ pi-session-tabs/                       # the Pi package itself
 │   ├── index.ts                       # Phase A: installPatches via controller; Phase B: factory registers tab commands
 │   ├── controller.mjs                 # globalThis-backed controller (patched flag, manager, hook dispatch) — reload-safe
 │   ├── patches.mjs                    # unchanged from previous design (DI'd makers)
-│   ├── tab-manager.mjs                # unchanged (registry, state machine, lifecycle, reconciliation)
-│   └── tab-bar.mjs                    # unchanged (formatTabs, createTabBar)
+│   ├── tab-manager.mjs                # registry, state machine, lifecycle, reconciliation; closeTab(index)
+│   ├── tab-component.mjs              # NEW: createTabComponent (Box + TruncatedText per tab)
+│   └── tab-bar.mjs                    # NEW: layoutTabs (pure) + createTabBar (native HStack strip); formatTabs kept
 ├── test/                              # patches/tab-manager/tab-bar tests unchanged; wiring test targets the controller
 └── docs/
 ```

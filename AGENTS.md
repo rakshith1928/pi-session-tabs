@@ -46,7 +46,7 @@ Entry flow:
 
 1. **`extensions/index.ts`** — the Pi `extensions` entry. Imports the real Pi
    classes (`AgentSessionRuntime`, `AgentSession`, `InteractiveMode`,
-   `SessionManager`) and TUI `Container`/`Text`. Calls `ensurePatched(...)` in
+   `SessionManager`) and TUI `Container`/`HStack`. Calls `ensurePatched(...)` in
    **Phase A** (before `new InteractiveMode`) and injects TUI classes into the
    controller, then `checkVersion()`. Exports the default `piSessionTabs()`
    factory (**Phase B**) which registers `/tabnew`, `/tabclose` and
@@ -84,10 +84,24 @@ Entry flow:
    switching, lifecycle, per-tab drafts, and per-tab status. Handles
    `/tabnew`, `/tabclose`, `/tabrename`, and Alt+Left/Right cycling. Session
    events drive a small per-tab state machine (`idle` / `running` /
-   `needs_attention`).
-5. **`extensions/tab-bar.mjs`** — renders the tab strip above the header.
-   `formatTabs()` is a **pure** function (used in tests); `createTabBar()` wires
-   the live TUI container + theme-aware rendering.
+   `needs_attention`). `closeTab(index)` closes a specific tab (delegating to
+   `closeActive()` when it is the active one) and keeps the foreground stable.
+5. **`extensions/tab-component.mjs`** — `createTabComponent({ theme, entry,
+   onActivate, onClose })` builds one tab's `Box`: an accent background fill for
+   the active tab, a `TruncatedText` label (`glyph + name + ×`), and a `+` box
+   for the new-tab entry. `onActivate`/`onClose` are unused inside the component
+   (Pi 0.84.1 has no `onClick` API); they are wired by the strip for the deferred
+   mouse track.
+6. **`extensions/tab-bar.mjs`** — builds the tab strip above the header from Pi's
+   native components: an `HStack` of per-tab `Box`es (each containing a
+   `TruncatedText` label) plus a `+` new-tab box. `layoutTabs()` is a **pure**
+   function mapping `manager.tabs` + `activeIndex` to per-tab content + flags
+   (glyph, color, active/new); `createTabBar()` assembles the `HStack`, owns
+   width allocation (`basis:"auto"` + `shrink`), and re-renders on every
+   update. The active tab is filled with the accent background; inactive tabs
+   are subdued; each tab shows an in-tab status glyph (`○` idle / `●` running /
+   `⚠` needs_attention) plus a `×` close control. Interaction is native
+   keyboard only (see Commands & keys); mouse clicks are deferred.
 
 ### Key invariants (preserve these or you will break the host)
 
@@ -130,9 +144,9 @@ node --test       # equivalent
 
 ## Conventions
 
-- **Pure where possible.** Patch factories, `formatTabs`, `parseTabCommand`,
-  `altTabDirection`, and `hasOverlay` are pure functions — keep them that way so
-  they stay trivially testable.
+- **Pure where possible.** Patch factories, `layoutTabs`, `formatTabs`,
+  `parseTabCommand`, `altTabDirection`, and `hasOverlay` are pure functions —
+  keep them that way so they stay trivially testable.
 - **JSDoc over TS** for the patched/prototype surfaces; document *why* a private
   Pi member is used in a comment (the code already does this — keep it up to
   date when Pi internals change).
@@ -149,7 +163,9 @@ node --test       # equivalent
   sessions.
 - Tabs are not restored as a group across restarts.
 - `Alt+Left` / `Alt+Right` shadow Pi editor word movement while tabs are active.
-- Tab-name truncation uses ASCII-width assumptions, not terminal display width.
+- Tab-name truncation is single-line via `TruncatedText` (allocated width from
+  the `HStack`); width math still uses ASCII-width assumptions, not true terminal
+  display width.
 - `needs_attention` is derived only from structural session events (e.g. an
   assistant message with `stopReason: "error"`), not arbitrary error text.
 - `session_start` fires once per session, on its first extension bind.
