@@ -40,7 +40,7 @@ descriptions and are never forwarded to the model.
 A native TUI strip is rendered above Pi's normal header. Each tab is a distinct
 rectangular region:
 
-- **Active tab** is highlighted with the accent background.
+- **Active tab** is highlighted with the `selectedBg` background.
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running,
   `⚠` needs attention.
 - `×` closes a tab; `+` opens a new one.

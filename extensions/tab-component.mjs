@@ -1,7 +1,7 @@
 import { Box, TruncatedText } from "@earendil-works/pi-tui";
 
 /**
- * Build one tab as a native Pi TUI `Box`. The box fills the `accent` background
+ * Build one tab as a native Pi TUI `Box`. The box fills the `selectedBg` background
  * when it is the active tab and leaves inactive tabs subdued (no fill). A child
  * `TruncatedText` renders the in-tab content:
  *   - a normal tab:  <glyph> <name> <×>   (close control when closable)
@@ -23,7 +23,7 @@ export function createTabComponent({ theme, entry, onActivate, onClose }) {
     ? "+"
     : `${theme.fg(entry.glyphColor, entry.glyph)} ${entry.displayName}${closable ? ` ${theme.fg("muted", "×")}` : ""}`;
   const box = new Box(1, 0, (text) =>
-    entry.isActive ? theme.bg("accent", text) : text,
+    entry.isActive ? theme.bg("selectedBg", text) : text,
   );
   box.addChild(new TruncatedText(inner, 0, 0));
   return box;

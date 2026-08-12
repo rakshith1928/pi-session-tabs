@@ -7,7 +7,7 @@ const fakeTheme = {
   bg: (c, t) => `BG(${c}:${t})`,
 };
 
-test("active tab is filled with accent bg and shows glyph+name+close", () => {
+test("active tab is filled with selectedBg bg and shows glyph+name+close", () => {
   const box = createTabComponent({
     theme: fakeTheme,
     entry: { key: "tab-0", displayName: "alpha", glyph: "●", glyphColor: "text", isActive: true, isNew: false },
@@ -17,7 +17,7 @@ test("active tab is filled with accent bg and shows glyph+name+close", () => {
   // FG(...)/BG(...) don't get truncated away before the name — in production
   // theme.fg/bg return zero-width ANSI, so truncation only triggers on real tabs.
   const flat = box.render(40).join("");
-  assert.ok(flat.includes("BG(accent:"), "active tab has accent background");
+  assert.ok(flat.includes("BG(selectedBg:"), "active tab has selectedBg background");
   // fakeTheme wraps the glyph (theme.fg), so the raw "● alpha" substring is not
   // present; assert the glyph and name independently.
   assert.ok(flat.includes("●"), "shows glyph");
@@ -36,10 +36,10 @@ test("new-tab entry renders + with no close control", () => {
   assert.ok(!flat.includes("×"));
 });
 
-test("active tab uses accent bg, inactive tab has no fill", () => {
+test("active tab uses selectedBg bg, inactive tab has no fill", () => {
   const active = createTabComponent({ theme: fakeTheme, entry: { displayName: "a", glyph: "●", glyphColor: "text", isActive: true, isNew: false }, onActivate() {}, onClose() {} });
   const inactive = createTabComponent({ theme: fakeTheme, entry: { displayName: "b", glyph: "○", glyphColor: "muted", isActive: false, isNew: false }, onActivate() {}, onClose() {} });
-  assert.ok(active.render(20).join("").includes("BG(accent:"));
+  assert.ok(active.render(20).join("").includes("BG(selectedBg:"));
   assert.ok(!inactive.render(20).join("").includes("BG("));
 });
 
