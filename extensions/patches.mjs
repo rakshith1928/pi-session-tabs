@@ -79,6 +79,94 @@ export function makeDisposeWrapper(orig, { onSessionDisposed } = {}) {
   };
 }
 
+/** Cancel values returned by guarded background UI methods (resolve promptly, never hang). */
+export const GUARDED_CANCEL = {
+  select: undefined,
+  confirm: false,
+  input: undefined,
+  editor: undefined,
+  custom: undefined,
+  notify: undefined,
+};
+
+const UI_MUTATORS = [
+  "select", "confirm", "input", "editor", "custom", "notify",
+  "setWidget", "setFooter", "setHeader", "setStatus",
+  "setWorkingMessage", "setWorkingVisible", "setWorkingIndicator", "setHiddenThinkingLabel",
+  "pasteToEditor", "setEditorText", "setEditorComponent", "addAutocompleteProvider",
+  "setTitle", "setToolsExpanded",
+];
+const UI_GETTERS = ["getEditorText", "getEditorComponent", "getToolsExpanded"];
+
+export function makeInitWrapper(origInit, { onModeReady } = {}) {
+  return async function init(...args) {
+    const result = await origInit.apply(this, args);
+    onModeReady?.(this);
+    return result;
+  };
+}
+
+export function makeRebindWrapper(origRebind, { onForegroundChanged } = {}) {
+  return async function rebindCurrentSession(opts) {
+    const prev = this.runtimeHost?.session;
+    try {
+      return await origRebind.call(this, opts);
+    } finally {
+      onForegroundChanged?.(this, prev, this.runtimeHost?.session);
+    }
+  };
+}
+
+export function makeShutdownWrapper(origShutdown, { onShutdown } = {}) {
+  return async function shutdown(...args) {
+    onShutdown?.(this);
+    return origShutdown.apply(this, args);
+  };
+}
+
+/**
+ * Guard every mutating ExtensionUIContext method by foreground-session identity.
+ * The context is tagged with `this.session.sessionId` at creation (during
+ * bindCurrentSessionExtensions, this.session is the session being bound).
+ * Backgrounded calls resolve promptly with cancel values — never block, never
+ * render into the foreground TUI.
+ */
+export function makeUiContextGuardWrapper(origCreate, { isForeground } = {}) {
+  return function createExtensionUIContext() {
+    const ctx = origCreate.call(this);
+    const sessionId = this.session?.sessionId;
+    const guard = () => {
+      if (!isForeground) return true;
+      return sessionId !== undefined && isForeground(sessionId);
+    };
+    const out = { ...ctx };
+    for (const key of UI_MUTATORS) {
+      const fn = ctx[key];
+      if (typeof fn !== "function") continue;
+      out[key] = (...args) => {
+        if (!guard()) {
+          if (key === "custom") return Promise.resolve();
+          if (key === "confirm") return GUARDED_CANCEL.confirm;
+          return GUARDED_CANCEL[key];
+        }
+        return fn.apply(ctx, args);
+      };
+    }
+    for (const key of UI_GETTERS) {
+      const fn = ctx[key];
+      if (typeof fn !== "function") continue;
+      out[key] = (...args) => (guard() ? fn.apply(ctx, args) : key === "getEditorText" ? "" : undefined);
+    }
+    // onTerminalInput: identity check at invocation time.
+    if (typeof ctx.onTerminalInput === "function") {
+      const origHandler = ctx.onTerminalInput;
+      out.onTerminalInput = (handler) =>
+        origHandler((data) => (guard() ? handler(data) : undefined));
+    }
+    return out;
+  };
+}
+
 /**
  * Apply additive patches. `hooks` dispatch events to the TabManager layer.
  * Safe by snapshot: every patched member is recorded before install, so
@@ -106,6 +194,12 @@ export function installPatches({ AgentSessionRuntime, AgentSession, InteractiveM
   apply(AgentSession, "bindExtensions", bindExtensionsWrapper);
   const disposeWrapper = makeDisposeWrapper(AgentSession.prototype.dispose, { onSessionDisposed });
   apply(AgentSession, "dispose", disposeWrapper);
+
+  const { onModeReady, onForegroundChanged, onShutdown, isForeground } = hooks;
+  apply(InteractiveMode, "init", makeInitWrapper(InteractiveMode.prototype.init, { onModeReady }));
+  apply(InteractiveMode, "rebindCurrentSession", makeRebindWrapper(InteractiveMode.prototype.rebindCurrentSession, { onForegroundChanged }));
+  apply(InteractiveMode, "shutdown", makeShutdownWrapper(InteractiveMode.prototype.shutdown, { onShutdown }));
+  apply(InteractiveMode, "createExtensionUIContext", makeUiContextGuardWrapper(InteractiveMode.prototype.createExtensionUIContext, { isForeground }));
 
   return {
     restore() {

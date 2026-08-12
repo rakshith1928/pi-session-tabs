@@ -5,6 +5,11 @@ import {
   makeCreateTabSession,
   makeBindExtensionsWrapper,
   makeDisposeWrapper,
+  makeInitWrapper,
+  makeRebindWrapper,
+  makeShutdownWrapper,
+  makeUiContextGuardWrapper,
+  GUARDED_CANCEL,
   installPatches,
 } from "../extensions/patches.mjs";
 
@@ -147,4 +152,85 @@ test("dispose wrapper dispatches onSessionDisposed after original", () => {
   wrap.call({ ...session, id: "s1" });
   assert.equal(disposed.length, 1);
   assert.equal(disposed[0], "s1");
+});
+
+test("init wrapper dispatches onModeReady after original", async () => {
+  const order = [];
+  const orig = async function () {
+    order.push("init");
+  };
+  const wrap = makeInitWrapper(orig, { onModeReady: (m) => order.push("ready:" + m.tag) });
+  await wrap.call({ tag: "mode" });
+  assert.deepEqual(order, ["init", "ready:mode"]);
+});
+
+test("rebind wrapper dispatches onForegroundChanged with prev/next in finally", async () => {
+  const events = [];
+  const A = { id: "A" };
+  const B = { id: "B" };
+  const mode = { runtimeHost: { session: A } };
+  const orig = async function () {
+    this.runtimeHost.session = B; // simulate swap performed during rebind
+  };
+  const wrap = makeRebindWrapper(orig, {
+    onForegroundChanged: (m, prev, next) => events.push([prev?.id, next?.id]),
+  });
+  await wrap.call(mode, { renderBeforeBind: true });
+  assert.deepEqual(events, [["A", "B"]]);
+
+  // hook still fires when orig throws
+  const mode2 = { runtimeHost: { session: A } };
+  const failing = async function () {
+    this.runtimeHost.session = B; // partial rebind: swap performed, then failure
+    throw new Error("bind failed");
+  };
+  const wrap2 = makeRebindWrapper(failing, {
+    onForegroundChanged: (m, prev, next) => events.push(["f:" + prev?.id, "f:" + next?.id]),
+  });
+  await assert.rejects(() => wrap2.call(mode2), /bind failed/);
+  assert.deepEqual(events[1], ["f:A", "f:B"]);
+});
+
+test("shutdown wrapper dispatches onShutdown before original", async () => {
+  const order = [];
+  const orig = async function () {
+    order.push("shutdown");
+  };
+  const wrap = makeShutdownWrapper(orig, { onShutdown: () => order.push("pre") });
+  await wrap.call({});
+  assert.deepEqual(order, ["pre", "shutdown"]);
+});
+
+test("uiContext guard: foreground passes through, background cancels promptly", async () => {
+  let fg = "A";
+  const isForeground = (id) => id === fg;
+  const ctx = {
+    select: () => "selected",
+    confirm: () => "confirmed",
+    input: () => "inputted",
+    notify: () => "notified",
+    custom: () => Promise.resolve("mounted"),
+    setWidget: () => "widget",
+    getEditorText: () => "text",
+    onTerminalInput: (h) => {
+      h("data");
+      return () => {};
+    },
+    theme: { fg: () => "colored" },
+  };
+  const origCreate = function () {
+    return ctx;
+  };
+  const wrap = makeUiContextGuardWrapper(origCreate, { isForeground });
+  const tagged = wrap.call({ session: { sessionId: "A" } });
+  assert.equal(tagged.select("x"), "selected");
+  fg = "B"; // A is now background
+  assert.equal(tagged.select("x"), GUARDED_CANCEL.select);
+  assert.equal(tagged.confirm("q"), GUARDED_CANCEL.confirm);
+  assert.equal(tagged.input("t"), GUARDED_CANCEL.input);
+  assert.equal(tagged.notify("n"), GUARDED_CANCEL.notify);
+  assert.equal(await tagged.custom(() => {}), undefined);
+  assert.equal(tagged.setWidget("k", "v"), undefined);
+  assert.equal(tagged.getEditorText(), "");
+  assert.equal(typeof tagged.theme.fg, "function");
 });
