@@ -86,14 +86,12 @@ Entry flow:
    events drive a small per-tab state machine (`idle` / `running` /
    `needs_attention`). `closeTab(index)` closes a specific tab (delegating to
    `closeActive()` when it is the active one) and keeps the foreground stable.
-5. **`extensions/tab-component.mjs`** — `createTabComponent({ theme, entry,
-   onActivate, onClose })` builds one tab's `Box`: an accent background fill for
-   the active tab, a `TruncatedText` label (`glyph + name + ×`), and a `+` box
-   for the new-tab entry. `onActivate`/`onClose` are unused inside the component
-   (Pi 0.84.1 has no `onClick` API); they are wired by the strip for the deferred
-   mouse track. Interaction is keyboard-only — there is **no focus mode**
-   (intentionally not implemented; Pi 0.84.1 has no clean free key for a
-   tab-navigation toggle).
+5. **`extensions/tab-component.mjs`** — `createTabComponent({ theme, entry })`
+   builds one tab's `Box`: a `selectedBg` background fill for the active tab and a
+   `TruncatedText` label (`glyph + " " + name`). There is no `+`/`×` control — the
+   strip is informational only (Pi 0.84.1 has no `onClick` API). Interaction is
+   keyboard-only — there is **no focus mode** (intentionally not implemented; Pi
+   0.84.1 has no clean free key for a tab-navigation toggle).
 6. **`extensions/tab-bar.mjs`** — builds the tab strip above the header from Pi's
    native components: an `HStack` of per-tab `Box`es (each containing a
    `TruncatedText` label = `glyph + " " + name`). `layoutTabs()` is a **pure**
