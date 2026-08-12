@@ -4,12 +4,12 @@
 // So these imports ARE the classes the CLI constructs, and patching here lands
 // before the first init() call.
 import { AgentSessionRuntime, AgentSession, InteractiveMode, SessionManager } from "@earendil-works/pi-coding-agent";
-import { Container, Text } from "@earendil-works/pi-tui";
+import { Container, HStack } from "@earendil-works/pi-tui";
 import { ensurePatched, checkVersion } from "./controller.mjs";
 import { registerTabCommands } from "./commands.mjs";
 
 const controller = ensurePatched({ AgentSessionRuntime, AgentSession, InteractiveMode, SessionManager });
-controller.tui = { Container, Text };
+controller.tui = { Container, HStack };
 void checkVersion();
 
 // Phase B — per-session factory (extension contract requires a default export).

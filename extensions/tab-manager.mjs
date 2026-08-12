@@ -3,6 +3,7 @@ import { appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTabBar } from "./tab-bar.mjs";
+import { HStack } from "@earendil-works/pi-tui";
 
 // Opt-in diagnostic: when PI_SESSION_TABS_DEBUG is set, every raw sequence the
 // Alt+arrow interceptor receives is appended (as char codes) to a log file. This
@@ -118,7 +119,7 @@ export function hasOverlay(mode) {
 }
 
 export class TabManager {
-  static attach(mode, { Container, Text }) {
+  static attach(mode, { Container, HStack }) {
     const manager = new TabManager({ mode });
     mode.__tabManager = manager;
 
@@ -137,10 +138,13 @@ export class TabManager {
     manager.setBar(
       createTabBar({
         Container,
-        Text,
+        HStack,
         theme: mode.createExtensionUIContext().theme,
         documentContainer: mode.documentContainer,
         requestRender: () => mode.ui?.requestRender?.(),
+        onActivateTab: (i) => manager.activate(i),
+        onNewTab: () => manager.createTab(),
+        onCloseTab: (i) => manager.closeTab(i),
       }),
     );
 

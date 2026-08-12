@@ -110,9 +110,12 @@ test("ensureManager wires a stub mode once (bar, submit wrap, alt listener, init
       constructor() { this.children = []; }
       addChild(child) { this.children.push(child); }
     },
-    Text: class {
-      constructor(value) { this.value = value; }
-      setText(value) { this.value = value; }
+    HStack: class {
+      constructor() { this.children = []; }
+      addChild(child) { this.children.push({ c: child }); }
+      clear() { this.children = []; }
+      render() { return [""]; }
+      invalidate() {}
     },
   };
   class FakeInteractiveMode {}
@@ -140,7 +143,7 @@ test("ensureManager skips non-TUI modes and foreign InteractiveMode instances", 
   console.warn = (m) => warns.push(m);
   try {
     const c = getController();
-    c.tui = { Container: class {}, Text: class {} };
+    c.tui = { Container: class {}, HStack: class {} };
     c.InteractiveMode = class {};
     assert.equal(c.ensureManager({}), null, "no TUI wiring → skip");
     assert.equal(c.ensureManager({ documentContainer: { children: [] }, defaultEditor: {}, ui: {} }), null);

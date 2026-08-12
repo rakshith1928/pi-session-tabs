@@ -1,3 +1,5 @@
+import { createTabComponent } from "./tab-component.mjs";
+
 const GLYPH = { idle: "○", running: "●", needs_attention: "⚠" };
 const GLYPH_COLOR = { idle: "muted", running: "text", needs_attention: "warning" };
 const SEP = "│";
@@ -39,25 +41,29 @@ export function formatTabs(tabs, activeIndex, width) {
   return out;
 }
 
-/** Build the top tab-bar row and insert it above the existing header. */
-export function createTabBar({ Container, Text, theme, documentContainer, requestRender }) {
-  const container = new Container();
-  const text = new Text("");
-  container.addChild(text);
-  documentContainer.children.unshift(container);
+/** Build the top tab-bar row from native Box/HStack TabComponents and insert it
+ * above the existing header. Widths are owned by HStack (basis:"auto" + shrink +
+ * minSize); TruncatedText truncates each label to its allocated width at render. */
+export function createTabBar({ Container, HStack, theme, documentContainer, requestRender, onActivateTab, onNewTab, onCloseTab }) {
+  const root = new Container();
+  const strip = new HStack([], { gap: 0, align: "start" });
+  root.addChild(strip);
+  documentContainer.children.unshift(root);
   return {
-    container,
-    text,
+    container: root,
+    strip,
     update(tabs, activeIndex) {
-      const parts = tabs.map((tab, i) => {
-        const glyph = GLYPH[tab.state] ?? GLYPH.idle;
-        const glyphColor = tab.state === "needs_attention" ? "warning" : tab.state === "running" ? "text" : "muted";
-        const coloredGlyph = theme.fg(glyphColor, glyph);
-        const inner = `${coloredGlyph} ${tab.name}`;
-        const seg = i === activeIndex ? `[${inner}]` : ` ${inner} `;
-        return i === activeIndex ? theme.fg("accent", seg) : theme.fg("muted", seg);
-      });
-      text.setText(parts.join(SEP));
+      strip.clear();
+      for (const entry of layoutTabs(tabs, activeIndex)) {
+        const closable = !entry.isNew && tabs.length > 1;
+        const comp = createTabComponent({
+          theme,
+          entry: { ...entry, canClose: closable },
+          onActivate: entry.isNew ? onNewTab : () => onActivateTab(Number(entry.key.split("-")[1])),
+          onClose: entry.isNew ? () => {} : () => onCloseTab(Number(entry.key.split("-")[1])),
+        });
+        strip.addChild(comp, { basis: "auto", shrink: 1, minSize: entry.isNew ? 1 : 3 });
+      }
       requestRender?.();
     },
   };

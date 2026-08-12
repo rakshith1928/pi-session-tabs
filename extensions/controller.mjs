@@ -37,7 +37,7 @@ export class SessionTabsController {
       return null;
     }
     this.mode = mode;
-    this.manager = TabManager.attach(mode, { Container: this.tui.Container, Text: this.tui.Text });
+    this.manager = TabManager.attach(mode, { Container: this.tui.Container, HStack: this.tui.HStack });
     return this.manager;
   }
 
