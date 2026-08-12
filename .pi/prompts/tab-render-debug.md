@@ -18,7 +18,7 @@ or `tabs overflow the terminal width`.
     `basis: "auto"`, `shrink: 1`, `minSize: 3` (new-tab `minSize: 1`). Width
     allocation is owned by the HStack, not by `layoutTabs`.
 - `extensions/tab-component.mjs` — `createTabComponent({ theme, entry, onActivate,
-  onClose })` builds one tab `Box`: `accent` background for the active tab, a
+  onClose })` builds one tab `Box`: `selectedBg` background for the active tab, a
   `TruncatedText` label (`glyph + name + ×`), `×` only when `entry.canClose`
   (false when only one tab remains), `+` for the new-tab entry. `onActivate` /
   `onClose` are currently unused (Pi 0.84.1 has no `onClick`; they are wired by
@@ -38,11 +38,12 @@ or `tabs overflow the terminal width`.
    `TruncatedText` so a shrunk tab stays one line. Do not add width math in
    `layoutTabs`.
 4. **Active highlight wrong?** `isActive` from `layoutTabs` drives
-   `theme.bg("accent")`.
+   `theme.bg("selectedBg")`.
 5. **Keys not working?** Alt+Left/Right are intercepted in `tab-manager.mjs`
    (`makeAltArrowListener`); `/tabnew /tabclose /tabrename` are registered slash
    commands in `commands.mjs`. There is **no focus mode**.
 
-## Reference
+## Further reading
 
-`DESIGN.md` §6 (tab bar), §7 (slash commands), §17 (status model).
+All rendering logic lives in the `extensions/` files listed above. For install
+and usage, see `README.md` and `docs/index.md` (both shipped with the package).
