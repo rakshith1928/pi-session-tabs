@@ -4,6 +4,13 @@ import { createTabBar } from "./tab-bar.mjs";
 const ALT_LEFT_RE = /^\x1b\[1;3(?::\d+)?D$/;
 const ALT_RIGHT_RE = /^\x1b\[1;3(?::\d+)?C$/;
 
+/** Return the requested tab direction, or 0 for unrelated terminal input. */
+export function altTabDirection(data) {
+  if (ALT_LEFT_RE.test(data)) return -1;
+  if (ALT_RIGHT_RE.test(data)) return 1;
+  return 0;
+}
+
 export async function handleTabCommand(manager, cmd) {
   try {
     if (cmd.command === "tabnew") await manager.createTab(cmd.name);
@@ -77,11 +84,10 @@ export class TabManager {
     };
 
     manager._unsubAlt = mode.ui?.addInputListener?.((data) => {
-      const isLeft = ALT_LEFT_RE.test(data);
-      const isRight = ALT_RIGHT_RE.test(data);
-      if (!isLeft && !isRight && data !== "\x1bb" && data !== "\x1bf") return undefined;
+      const direction = altTabDirection(data);
+      if (!direction) return undefined;
       if (hasOverlay(mode)) return undefined;
-      void manager.cycle(isLeft || data === "\x1bb" ? -1 : +1);
+      void manager.cycle(direction);
       return { consume: true };
     });
 
@@ -98,6 +104,10 @@ export class TabManager {
     this._unsubAlt = undefined;
     this._chain = Promise.resolve();
     this._origSubmit = undefined;
+    // Pi swaps runtimeHost.session before invoking its rebind callback. Keep
+    // the last known foreground identity so replacement reconciliation can
+    // distinguish the outgoing session from the incoming one.
+    this.foregroundSession = this.runtime.session;
   }
 
   _enqueue(fn) {
@@ -280,6 +290,7 @@ export class TabManager {
       nextTab = this.addTab(next, { name });
     }
     this.activeIndex = this.tabs.indexOf(nextTab);
+    this.foregroundSession = next;
     this.updateBar();
   }
 

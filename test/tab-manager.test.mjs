@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TabManager } from "../extensions/tab-manager.mjs";
-import { parseTabCommand, hasOverlay } from "../extensions/tab-manager.mjs";
+import { parseTabCommand, hasOverlay, altTabDirection } from "../extensions/tab-manager.mjs";
 
 function stubSession(id, { isStreaming = false } = {}) {
   const listeners = [];
@@ -101,6 +101,14 @@ test("parseTabCommand recognizes only the three tab commands", () => {
   assert.equal(parseTabCommand("/tabx"), null);
   assert.equal(parseTabCommand("hello"), null);
   assert.equal(parseTabCommand(""), null);
+});
+
+test("Alt navigation recognizes only Alt-left/right escape sequences", () => {
+  assert.equal(altTabDirection("\x1b[1;3D"), -1);
+  assert.equal(altTabDirection("\x1b[1;3C"), 1);
+  assert.equal(altTabDirection("\x1bb"), 0, "Alt-b remains editor word motion");
+  assert.equal(altTabDirection("\x1bf"), 0, "Alt-f remains editor word motion");
+  assert.equal(altTabDirection("\x1b[A"), 0);
 });
 
 test("hasOverlay detects open overlays and custom editors", () => {

@@ -108,7 +108,13 @@ export function makeInitWrapper(origInit, { onModeReady } = {}) {
 
 export function makeRebindWrapper(origRebind, { onForegroundChanged } = {}) {
   return async function rebindCurrentSession(opts) {
-    const prev = this.runtimeHost?.session;
+    // Pi replaces runtimeHost.session before invoking this callback for
+    // destructive replacements. Keep the manager's last foreground identity
+    // so the registry can reconcile the replacement rather than seeing the
+    // new session as both sides of the transition.
+    const prev = this.__tabManager?.foregroundSession ?? this.runtimeHost?.session;
+    const next = this.runtimeHost?.session;
+    if (prev !== next) this.resetExtensionUI?.();
     try {
       return await origRebind.call(this, opts);
     } finally {

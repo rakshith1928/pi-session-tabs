@@ -164,6 +164,24 @@ test("init wrapper dispatches onModeReady after original", async () => {
   assert.deepEqual(order, ["init", "ready:mode"]);
 });
 
+test("rebind wrapper uses the manager's prior foreground for destructive replacement", async () => {
+  const events = [];
+  const A = { id: "A" };
+  const B = { id: "B" };
+  let resetCount = 0;
+  const mode = {
+    runtimeHost: { session: B },
+    __tabManager: { foregroundSession: A },
+    resetExtensionUI() { resetCount += 1; },
+  };
+  const wrap = makeRebindWrapper(async function () {}, {
+    onForegroundChanged: (_mode, prev, next) => events.push([prev?.id, next?.id]),
+  });
+  await wrap.call(mode);
+  assert.deepEqual(events, [["A", "B"]]);
+  assert.equal(resetCount, 1, "replacement clears stale shared extension chrome");
+});
+
 test("rebind wrapper dispatches onForegroundChanged with prev/next in finally", async () => {
   const events = [];
   const A = { id: "A" };
