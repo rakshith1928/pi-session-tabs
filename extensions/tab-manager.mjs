@@ -1,14 +1,85 @@
 import { basename } from "node:path";
+import { appendFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createTabBar } from "./tab-bar.mjs";
 
-const ALT_LEFT_RE = /^\x1b\[1;3(?::\d+)?D$/;
-const ALT_RIGHT_RE = /^\x1b\[1;3(?::\d+)?C$/;
+// Opt-in diagnostic: when PI_SESSION_TABS_DEBUG is set, every raw sequence the
+// Alt+arrow interceptor receives is appended (as char codes) to a log file. This
+// is how we discover what a given terminal actually emits for Alt+Right.
+const DEBUG_LOG = join(tmpdir(), "pi-session-tabs-alt.log");
+function debugLog(data, direction) {
+  if (!process.env.PI_SESSION_TABS_DEBUG) return;
+  try {
+    appendFileSync(
+      DEBUG_LOG,
+      JSON.stringify({ t: Date.now(), bytes: [...data].map((c) => c.charCodeAt(0)), direction }) + "\n",
+    );
+  } catch {
+    /* best effort */
+  }
+}
 
-/** Return the requested tab direction, or 0 for unrelated terminal input. */
+// Kitty / modifyOtherKeys Alt+arrow. The xterm modifier parameter is
+// 1 + 2*shift + 4*alt + 8*ctrl + ...; Alt sets the value-4 bit, so the
+// parameter (e.g. 5 = Alt, 7 = Alt+Shift, 13 = Alt+Ctrl) always has that bit
+// set. An optional ":<event>" suffix (Kitty press/repeat/release) is allowed.
+// Terminals that don't negotiate modifyOtherKeys instead emit a lone ESC
+// followed by the bare arrow (handled via plainArrowDirection + ESC tracking).
+const CSI_ALT_ARROW_RE = /^\x1b\[1;(\d+)(?::\d+)?([CD])$/;
+const PLAIN_LEFT_RE = /^\x1bO?\[?D$/;
+const PLAIN_RIGHT_RE = /^\x1bO?\[?C$/;
+const ESC = "\x1b";
+
+/** Return the requested tab direction for a Kitty/modifyOtherKeys Alt+arrow, or 0. */
 export function altTabDirection(data) {
-  if (ALT_LEFT_RE.test(data)) return -1;
-  if (ALT_RIGHT_RE.test(data)) return 1;
+  const m = CSI_ALT_ARROW_RE.exec(data);
+  if (!m) return 0;
+  if ((parseInt(m[1], 10) & 4) === 0) return 0; // alt bit (value 4) not set
+  return m[2] === "C" ? 1 : -1;
+}
+
+/** Return the direction for a plain arrow sequence (used after a lone ESC). */
+export function plainArrowDirection(data) {
+  if (PLAIN_LEFT_RE.test(data)) return -1;
+  if (PLAIN_RIGHT_RE.test(data)) return 1;
   return 0;
+}
+
+/**
+ * Build the Alt+arrow input listener. Recognizes the Kitty/modifyOtherKeys form
+ * (\x1b[1;3C/D) directly, and the ESC-prefixed fallback (lone ESC then plain
+ * arrow) by tracking a pending ESC across the two sequences pi-tui's StdinBuffer
+ * emits for it. Returns undefined to let unrelated input pass through.
+ */
+export function makeAltArrowListener(mode, manager) {
+  let pendingEsc = false;
+  let escTimer = null;
+  const clearPending = () => {
+    pendingEsc = false;
+    if (escTimer) {
+      clearTimeout(escTimer);
+      escTimer = null;
+    }
+  };
+  return (data) => {
+    // Lone ESC: remember it in case the next sequence is an arrow (Alt+Arrow
+    // fallback). We let it through; the following arrow is what we consume.
+    if (data === ESC) {
+      pendingEsc = true;
+      escTimer = setTimeout(clearPending, 50);
+      debugLog(data, 0);
+      return undefined;
+    }
+    let direction = altTabDirection(data);
+    if (!direction && pendingEsc) direction = plainArrowDirection(data);
+    debugLog(data, direction);
+    if (!direction) return undefined;
+    clearPending();
+    if (hasOverlay(mode)) return undefined;
+    void manager.cycle(direction);
+    return { consume: true };
+  };
 }
 
 export async function handleTabCommand(manager, cmd) {
@@ -83,13 +154,15 @@ export class TabManager {
       return manager._origSubmit(text);
     };
 
-    manager._unsubAlt = mode.ui?.addInputListener?.((data) => {
-      const direction = altTabDirection(data);
-      if (!direction) return undefined;
-      if (hasOverlay(mode)) return undefined;
-      void manager.cycle(direction);
-      return { consume: true };
-    });
+    manager._unsubAlt = mode.ui?.addInputListener?.(makeAltArrowListener(mode, manager));
+
+    if (process.env.PI_SESSION_TABS_DEBUG) {
+      try {
+        appendFileSync(DEBUG_LOG, JSON.stringify({ t: Date.now(), event: "attach", note: "Alt+arrow interceptor registered" }) + "\n");
+      } catch {
+        /* best effort */
+      }
+    }
 
     return manager;
   }

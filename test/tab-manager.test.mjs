@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TabManager } from "../extensions/tab-manager.mjs";
-import { parseTabCommand, hasOverlay, altTabDirection } from "../extensions/tab-manager.mjs";
+import { parseTabCommand, hasOverlay, altTabDirection, plainArrowDirection, makeAltArrowListener } from "../extensions/tab-manager.mjs";
 
 function stubSession(id, { isStreaming = false } = {}) {
   const listeners = [];
@@ -23,11 +23,14 @@ function stubSession(id, { isStreaming = false } = {}) {
 
 function stubMode(session, { editor } = {}) {
   const ui = { requestRender() {} };
+  // A single editor object so mode.editor === mode.defaultEditor (as in a real
+  // idle Pi session), otherwise hasOverlay() would gate the Alt+arrow listener.
+  const ed = editor ?? { getText: () => "", setText() {} };
   return {
     runtimeHost: { session },
     ui,
-    editor: editor ?? { getText: () => "", setText() {} },
-    defaultEditor: editor ?? { getText: () => "", setText() {} },
+    editor: ed,
+    defaultEditor: ed,
   };
 }
 
@@ -104,11 +107,67 @@ test("parseTabCommand recognizes only the three tab commands", () => {
 });
 
 test("Alt navigation recognizes only Alt-left/right escape sequences", () => {
-  assert.equal(altTabDirection("\x1b[1;3D"), -1);
-  assert.equal(altTabDirection("\x1b[1;3C"), 1);
+  // xterm modifier = 1 + 2*shift + 4*alt + ...; Alt sets the value-4 bit.
+  assert.equal(altTabDirection("\x1b[1;5D"), -1, "Alt+Left");
+  assert.equal(altTabDirection("\x1b[1;5C"), 1, "Alt+Right");
+  assert.equal(altTabDirection("\x1b[1;7C"), 1, "Alt+Shift+Right");
+  assert.equal(altTabDirection("\x1b[1;13D"), -1, "Alt+Ctrl+Left");
+  // Kitty event-type suffix (press/repeat/release) is still matched.
+  assert.equal(altTabDirection("\x1b[1;5:1C"), 1);
+  // Shift-only (value 3) is NOT Alt and must be ignored.
+  assert.equal(altTabDirection("\x1b[1;3C"), 0, "Shift+Right is not Alt");
   assert.equal(altTabDirection("\x1bb"), 0, "Alt-b remains editor word motion");
   assert.equal(altTabDirection("\x1bf"), 0, "Alt-f remains editor word motion");
   assert.equal(altTabDirection("\x1b[A"), 0);
+});
+
+test("plainArrowDirection maps bare arrows to directions", () => {
+  assert.equal(plainArrowDirection("\x1b[D"), -1);
+  assert.equal(plainArrowDirection("\x1b[C"), 1);
+  assert.equal(plainArrowDirection("\x1bOD"), -1, "application mode");
+  assert.equal(plainArrowDirection("\x1bOC"), 1, "application mode");
+  assert.equal(plainArrowDirection("\x1b[A"), 0);
+  assert.equal(plainArrowDirection("a"), 0);
+});
+
+test("alt arrow listener switches tabs on Kitty/modifyOtherKeys sequence", () => {
+  const mode = stubMode(stubSession("s1"));
+  const m = new TabManager({ mode });
+  m.addTab(mode.runtimeHost.session, { name: "one", boundBefore: true });
+  m.addTab(stubSession("s2"), { name: "two", boundBefore: true });
+  assert.equal(m.tabs.length, 2);
+  let consumed = null;
+  const listener = makeAltArrowListener(mode, m);
+  // Stub cycle so we observe intent without touching real switching.
+  let cycled = null;
+  m.cycle = async (dir) => { cycled = dir; };
+  consumed = listener("\x1b[1;5C");
+  assert.equal(cycled, 1);
+  assert.deepEqual(consumed, { consume: true });
+  cycled = null;
+  consumed = listener("\x1b[1;5D");
+  assert.equal(cycled, -1);
+  assert.deepEqual(consumed, { consume: true });
+});
+
+test("alt arrow listener handles ESC-prefixed Alt+arrow fallback", () => {
+  const mode = stubMode(stubSession("s1"));
+  const m = new TabManager({ mode });
+  m.addTab(mode.runtimeHost.session, { name: "one", boundBefore: true });
+  m.addTab(stubSession("s2"), { name: "two", boundBefore: true });
+  let cycled = null;
+  m.cycle = async (dir) => { cycled = dir; };
+  const listener = makeAltArrowListener(mode, m);
+  // First sequence is a lone ESC (let through), second is the plain arrow.
+  assert.equal(listener("\x1b"), undefined, "lone ESC passes through");
+  const consumed = listener("\x1b[C");
+  assert.equal(cycled, 1, "Alt+Right via ESC-prefixed fallback");
+  assert.deepEqual(consumed, { consume: true });
+  // A lone ESC not followed by an arrow does not switch.
+  cycled = null;
+  assert.equal(listener("\x1b"), undefined);
+  assert.equal(listener("a"), undefined);
+  assert.equal(cycled, null);
 });
 
 test("hasOverlay detects open overlays and custom editors", () => {
