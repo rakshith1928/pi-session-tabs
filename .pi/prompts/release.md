@@ -1,42 +1,35 @@
-# Release pi-session-tabs
+Release this package
 
-Publish a new version of the pi-session-tabs package.
+Cut a new release of this package.
 
-Arguments: `$ARGUMENTS` — the version bump, e.g. `patch`, `minor`, or `1.2.0`.
+Arguments: $ARGUMENTS — the version bump, e.g. "patch", "minor", or "1.2.0".
 
-## Steps
+Important: contributors do not publish. Publishing to npm is a maintainer action (or run by CI). As a contributor, prepare the release and open a pull request; do not run npm publish yourself.
 
-1. **Clean tree + green tests.** Ensure no uncommitted work you don't intend to
-   ship, then run `npm test` (must be green — currently 54/54).
+Steps for a contributor
 
-2. **Bump version** (updates `package.json`):
+1. Clean tree + green tests. Ensure no uncommitted work you do not intend to ship, then run npm test (it must be green).
 
-   ```sh
+2. Bump the version (updates package.json):
    npm version patch        # or: minor | major | 1.2.0
-   ```
+   Commit the version bump.
 
-3. **Publish to npm:**
+3. Update docs if needed (README install section, user guide).
 
-   ```sh
-   npm publish --access public
-   ```
+4. Open a pull request with the version bump and a short changelog, and ask a maintainer to review and publish.
 
-   The package `files` whitelist is `extensions/` + `README.md`, and
-   `package.json` declares `"pi": { "extensions": ["./extensions/index.ts"] }`.
+Steps for a maintainer (not for contributors)
 
-4. **Install / verify in a Pi session:**
-   - From a clone of this repo: `pi install .` (loads the local
-     `./extensions/index.ts`).
-   - From npm: `pi install npm:pi-session-tabs`.
-   Then `/tabnew`, `/tabclose`, `/tabrename` and Alt+Left/Right should work.
+- Review and merge the release pull request.
+- Publish:
+  npm publish --access public
+  The package files whitelist is extensions/ + README.md, and package.json declares "pi": { "extensions": ["./extensions/index.ts"] }.
+- Verify the install in a Pi session:
+  - From a clone of this repo: pi install .
+  - From npm: pi install npm:<package-name>
+  Then the slash commands and key bindings should work.
 
-5. **Docs.** Update the `README.md` install section if the install command
-   changed.
+Notes
 
-## Notes
-
-- The extension loads via `package.json`'s `pi.extensions` entry. Do **not** move
-  it to `.pi/extensions/` — that directory is for in-repo, non-packaged
-  extensions, not for a published package like this one.
-- No build step: TypeScript `index.ts` is type-stripped by Node, and the `.mjs`
-  files are plain ESM.
+- The extension loads via package.json's pi.extensions entry. Do not move it to .pi/extensions/ — that directory is for in-repo, non-packaged extensions, not for a published package.
+- No build step: the TypeScript index.ts is type-stripped by Node, and the .mjs files are plain ESM.
