@@ -9,6 +9,10 @@ node_modules/
 .pi_config/
 tui-debug.log
 
+# Maintainer-only release prompt — contributors must not publish, so keep it
+# local and out of clones (Pi still loads it from disk for the maintainer).
+.pi/prompts/release.md
+
 # Deep internal design spec — kept local, not published to the repo.
 DESIGN.md
 
