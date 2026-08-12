@@ -1,0 +1,18 @@
+{
+  "name": "pi-session-tabs",
+  "version": "0.1.0",
+  "description": "OpenCode v2-style multi-session tabs for Pi (loads as a normal Pi package; no launcher)",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./extensions/index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "files": ["extensions/", "README.md"],
+  "scripts": {
+    "test": "node --test"
+  }
+}
