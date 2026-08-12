@@ -185,6 +185,35 @@ test("cycle wraps around; closeActive refuses last tab and closes with neighbor 
   assert.equal(mode._status, "Cannot close the last tab");
 });
 
+test("closeActive preserves the closing tab when neighbor activation fails", async () => {
+  const sA = stubSession("A");
+  const sB = stubSession("B");
+  let disposed = false;
+  sA.dispose = () => { disposed = true; };
+  const runtime = {
+    session: sA,
+    async __piSessionTabsAttachSession(session) {
+      if (session === sB) throw new Error("attach failed");
+      this.session = session;
+    },
+  };
+  const mode = {
+    runtimeHost: runtime,
+    ui: { requestRender() {} },
+    editor: { getText: () => "", setText() {} },
+    defaultEditor: { getText: () => "", setText() {} },
+  };
+  const m = new TabManager({ mode });
+  const closing = m.addTab(sA, { name: "a" });
+  m.addTab(sB, { name: "b" });
+  const tabsBefore = [...m.tabs];
+  await m.closeActive();
+  assert.equal(disposed, false, "closing session is not disposed");
+  assert.deepEqual(m.tabs, tabsBefore, "registry is unchanged");
+  assert.equal(m.activeIndex, 0);
+  assert.equal(runtime.session, closing.session);
+});
+
 test("renameActive persists via setSessionName and updates label", () => {
   const sA = stubSession("A");
   sA.setSessionName = (n) => { sA._name = n; };

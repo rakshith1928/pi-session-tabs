@@ -58,7 +58,8 @@ export class TabManager {
 
   async activate(index) {
     return this._enqueue(async () => {
-      if (index === this.activeIndex || index < 0 || index >= this.tabs.length) return;
+      if (index === this.activeIndex) return true;
+      if (index < 0 || index >= this.tabs.length) return false;
       const target = this.tabs[index];
       const prev = this.runtime.session;
       try {
@@ -70,11 +71,12 @@ export class TabManager {
           /* restore failed; registry still consistent via hooks */
         }
         this.mode.showStatus?.(`Tab switch failed: ${err instanceof Error ? err.message : String(err)}`);
-        return;
+        return false;
       }
       this.activeIndex = index;
       this._applyDrafts(prev, target.session);
       this.updateBar();
+      return true;
     });
   }
 
@@ -102,7 +104,8 @@ export class TabManager {
     const idx = this.activeIndex;
     const closing = this.tabs[idx];
     const neighbor = this.tabs[idx === this.tabs.length - 1 ? idx - 1 : idx + 1];
-    await this.activate(this.tabs.indexOf(neighbor));
+    const activated = await this.activate(this.tabs.indexOf(neighbor));
+    if (!activated) return;
     try {
       closing.session.dispose();
     } catch (err) {
