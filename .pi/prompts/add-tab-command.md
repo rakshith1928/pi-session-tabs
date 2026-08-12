@@ -39,7 +39,7 @@ description, e.g. `tabmute: hide the current tab from the bar`.
    controller/manager. Mirror the existing `/tabrename` tests.
 
 4. **Docs.** Note the new command in `AGENTS.md` (Commands/keys) and in
-   `DESIGN.md` if it changes behavior.
+   `docs/index.md` (user guide) if it changes user-facing behavior.
 
 ## Run
 
