@@ -255,6 +255,18 @@ export class TabManager {
     this.updateBar();
   }
 
+  closeTab(index) {
+    if (this.tabs.length <= 1) return;            // keep at least one tab
+    if (index === this.activeIndex) {
+      return this.closeActive();                  // foreground advances to a neighbor
+    }
+    const removed = this.tabs[index];
+    this.tabs.splice(index, 1);
+    if (index < this.activeIndex) this.activeIndex -= 1; // keep foreground stable
+    removed?.session.dispose?.();
+    this.updateBar();
+  }
+
   renameActive(name) {
     if (!name) {
       this.mode.showStatus?.("Usage: /tabrename <name>");

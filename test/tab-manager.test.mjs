@@ -34,6 +34,21 @@ function stubMode(session, { editor } = {}) {
   };
 }
 
+function makeManagerWithTabs(n) {
+  const sessions = [];
+  for (let i = 0; i < n; i++) sessions.push(stubSession("s" + i, { isStreaming: false }));
+  const runtime = {
+    session: sessions[0],
+    async __piSessionTabsAttachSession(s) { this.session = s; },
+  };
+  const ed = { getText: () => "", setText() {} };
+  const mode = { runtimeHost: runtime, ui: { requestRender() {} }, editor: ed, defaultEditor: ed, showStatus() {} };
+  const m = new TabManager({ mode });
+  for (let i = 0; i < n; i++) m.addTab(sessions[i], { name: "t" + i, boundBefore: i === 0 });
+  if (n > 0) m.activeIndex = 0;
+  return m;
+}
+
 test("addTab registers session with initial state from isStreaming", () => {
   const mode = stubMode(stubSession("s1"));
   const m = new TabManager({ mode });
@@ -351,4 +366,24 @@ test("shutdown disposes background tabs and silences updates", () => {
   const bar = { update: () => { throw new Error("should not update after shutdown"); } };
   m.setBar(bar);
   m.updateBar(); // must no-op via shuttingDown guard
+});
+
+test("closeTab(nonActive) removes that tab and keeps the foreground", () => {
+  const mgr = makeManagerWithTabs(3);
+  const prevActive = mgr.activeIndex;
+  mgr.closeTab((mgr.activeIndex + 1) % mgr.tabs.length);
+  assert.equal(mgr.tabs.length, 2);
+  assert.equal(mgr.activeIndex, prevActive, "foreground unchanged");
+});
+
+test("closeTab(active) behaves like closeActive", async () => {
+  const mgr = makeManagerWithTabs(3);
+  await mgr.closeTab(mgr.activeIndex);
+  assert.equal(mgr.tabs.length, 2);
+});
+
+test("closeTab refuses when only one tab remains", () => {
+  const mgr = makeManagerWithTabs(1);
+  mgr.closeTab(0);
+  assert.equal(mgr.tabs.length, 1);
 });
