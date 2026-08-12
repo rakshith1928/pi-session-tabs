@@ -12,7 +12,7 @@ export const CONTROLLER_KEY = Symbol.for("pi.sessionTabs.controller");
 export class SessionTabsController {
   constructor() {
     this.patched = false;
-    this.tui = undefined; // { Container, Text } set by index.ts Phase A
+    this.tui = undefined; // { Container, HStack } set by index.ts Phase A
     this.InteractiveMode = undefined; // for the identity self-check
     this.manager = null;
     this.mode = null;

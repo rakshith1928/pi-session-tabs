@@ -18,7 +18,7 @@ import { Box, TruncatedText } from "@earendil-works/pi-tui";
  */
 export function createTabComponent({ theme, entry, onActivate, onClose }) {
   const isNew = entry.isNew;
-  const closable = !isNew;
+  const closable = entry.canClose ?? !isNew;
   const inner = isNew
     ? "+"
     : `${theme.fg(entry.glyphColor, entry.glyph)} ${entry.displayName}${closable ? ` ${theme.fg("muted", "×")}` : ""}`;
