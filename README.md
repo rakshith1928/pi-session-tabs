@@ -1,8 +1,31 @@
-# pi-session-tabs
+<p align="center">
+  <b>pi-session-tabs</b><br />
+  <span>OpenCode v2-style multi-session tabs for Pi</span>
+</p>
 
-OpenCode v2-style multi-session tabs for Pi 0.84.1. Each tab is an independent, concurrently live Pi session with its own persisted conversation.
+<p align="center">
+  <a href="https://www.npmjs.com/package/pi-session-tabs"><img alt="npm" src="https://img.shields.io/npm/v/pi-session-tabs?style=flat-square" /></a>
+  <img alt="Pi" src="https://img.shields.io/badge/Pi-0.84.1-5865F2?style=flat-square" />
+</p>
 
-## Install
+Each tab is an independent, concurrently-live Pi session with its own persisted conversation — keep several lines of work open and switch between them instantly, the way OpenCode v2 does. It loads as a normal Pi package: install it once and it appears in every Pi session.
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Commands](#commands)
+- [Keyboard](#keyboard)
+- [The tab bar](#the-tab-bar)
+- [How sessions work](#how-sessions-work)
+- [Architecture](#architecture)
+- [Known limitations](#known-limitations)
+- [Requirements](#requirements)
+- [Development](#development)
+- [Uninstall](#uninstall)
+
+---
+
+## Quick Start
 
 Published package:
 
@@ -22,22 +45,44 @@ For local development:
 pi install ./pi-session-tabs
 ```
 
-To publish, remove nothing: the package `files` setting already scopes the published contents. Run `npm publish`, then install it with `pi install npm:pi-session-tabs`.
-
-## Use
-
 Run plain `pi` after installing the package. The tab bar appears above Pi's normal header.
 
-| Command / key | Action |
+## Commands
+
+All three are real Pi slash commands — they appear in command autocomplete with descriptions and are never forwarded to the model.
+
+| Command | Action |
 | --- | --- |
 | `/tabnew [name]` | Create and activate an independent session tab. |
 | `/tabclose` | Close the active tab (the last tab cannot be closed). |
 | `/tabrename <name>` | Rename the active tab and persist its session name. |
+
+## Keyboard
+
+| Key | Action |
+| --- | --- |
 | `Alt+Left` / `Alt+Right` | Switch to the previous / next tab, wrapping at either end. |
+
+## The tab bar
+
+A native TUI strip is rendered above Pi's normal header. Each tab is a distinct rectangular region:
+
+- **Active tab** is highlighted with the `selectedBg` background.
+- **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running, `⚠` needs attention.
+- Tab widths follow the session name (plus the status glyph), and long names truncate safely so the strip always fits the terminal.
+- Closing the last tab is disabled.
+
+> **No mouse, no focus mode.** Pi 0.84.1 exposes no native click or hover API for extension widgets, so tabs are keyboard-driven (`Alt+Left` / `Alt+Right` and the `/tab*` commands). Click-to-switch is a deferred future enhancement.
+
+## How sessions work
+
+Each tab backs a real `AgentSession`. One tab is foreground at a time; switching simply swaps which session Pi renders, while the others keep running in the background and surface status (running / needs-attention) in their glyphs. There is exactly one foreground and any number of concurrent background sessions — the OpenCode v2 model.
 
 ## Architecture
 
-This is a Pi package extension. During Phase A, its top-level module installs additive, guarded patches before Pi constructs `InteractiveMode`. A controller stored on `globalThis` survives extension reloads and keeps one `TabManager` per running mode. The implementation uses eight guarded integration points, while `TabManager` owns session registration, switching, lifecycle, drafts, and status; `TabBar` renders the shared tab strip.
+This is a Pi package extension. During startup its top-level module installs additive, guarded patches before Pi constructs `InteractiveMode`. A controller stored on `globalThis` survives extension reloads and keeps one `TabManager` per running mode. The implementation uses eight guarded integration points, while `TabManager` owns session registration, switching, lifecycle, drafts, and status; `TabBar` renders the shared tab strip.
+
+See `AGENTS.md` for the architecture, invariants, and test conventions, and `docs/index.md` for the full user guide.
 
 ## Known limitations
 
@@ -47,14 +92,6 @@ This is a Pi package extension. During Phase A, its top-level module installs ad
 - Tab-name truncation uses ASCII-width assumptions rather than terminal display width.
 - `needs_attention` is derived only from structural session events, including an assistant message with `stopReason: "error"`; it does not classify arbitrary error text.
 - `session_start` fires once per session, on its first extension bind.
-
-## Uninstall
-
-```sh
-pi remove pi-session-tabs
-```
-
-Pi itself is untouched.
 
 ## Requirements
 
@@ -79,3 +116,11 @@ pi -e .
 ```
 
 `npm test` runs the `node:test` suite (it never touches a real Pi). `pi -e .` boots an interactive Pi session with the local extension loaded, so you can exercise the tab bar, the `/tab*` commands, and `Alt+Left`/`Alt+Right` by hand. `AGENTS.md` covers the architecture, invariants, and test conventions.
+
+## Uninstall
+
+```sh
+pi remove pi-session-tabs
+```
+
+Pi itself is untouched.
