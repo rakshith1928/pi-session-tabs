@@ -1,2 +1,16 @@
 node_modules/
 *.log
+
+# Pi project-local runtime (transient, not shareable). Keep .pi/prompts,
+# .pi/settings.json and .pi/extensions trackable for contributors.
+.pi/subagents/
+.pi/hf-sessions/
+.pi/hf-sessions-backup/
+.pi_config/
+tui-debug.log
+
+# Deep internal design spec — kept local, not published to the repo.
+DESIGN.md
+
+# Planning artifacts (SDD plans) — kept local, not published to the repo.
+docs/superpowers/
