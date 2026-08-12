@@ -18,16 +18,16 @@ test("formatTabs truncates to width with ellipsis", () => {
   assert.ok(out.endsWith("…"));
 });
 
-test("strip lays out one component per tab plus a new-tab", () => {
+test("strip lays out one component per tab", () => {
   const FakeHStack = class { constructor() { this.children = []; } addChild(c, o) { this.children.push({ c, o }); } clear() { this.children = []; } render() { return [""]; } invalidate() {} };
-  const bar = createTabBar({ Container: class { constructor() { this.children = []; } addChild(c) { this.children.unshift(c); } }, HStack: FakeHStack, theme: { fg: (c, t) => t, bg: (c, t) => t }, documentContainer: { children: [] }, requestRender() {}, onActivateTab() {}, onNewTab() {}, onCloseTab() {} });
+  const bar = createTabBar({ Container: class { constructor() { this.children = []; } addChild(c) { this.children.unshift(c); } }, HStack: FakeHStack, theme: { fg: (c, t) => t, bg: (c, t) => t }, documentContainer: { children: [] }, requestRender() {} });
   bar.update([{ name: "a", state: "idle" }, { name: "b", state: "running" }], 0);
-  assert.equal(bar.strip.children.length, 3);
+  assert.equal(bar.strip.children.length, 2);
 });
 
 test("strip renders every tab on a single line (TruncatedText, not Text)", () => {
   const FakeHStack = class { constructor() { this.children = []; } addChild(c, o) { this.children.push({ c, o }); } clear() { this.children = []; } render() { return [""]; } invalidate() {} };
-  const bar = createTabBar({ Container: class { constructor() { this.children = []; } addChild(c) { this.children.unshift(c); } }, HStack: FakeHStack, theme: { fg: (c, t) => t, bg: (c, t) => t }, documentContainer: { children: [] }, requestRender() {}, onActivateTab() {}, onNewTab() {}, onCloseTab() {} });
+  const bar = createTabBar({ Container: class { constructor() { this.children = []; } addChild(c) { this.children.unshift(c); } }, HStack: FakeHStack, theme: { fg: (c, t) => t, bg: (c, t) => t }, documentContainer: { children: [] }, requestRender() {} });
   bar.update([{ name: "a-very-long-session-name-that-exceeds-the-tab", state: "idle" }, { name: "b", state: "running" }], 0);
   assert.ok(bar.strip.children.every(({ c }) => c.render(20).length === 1), "every tab is a single line");
 });
@@ -39,9 +39,8 @@ test("layout assigns content + flags and marks the active tab", () => {
     { name: "gamma", state: "idle" },
   ];
   const out = layoutTabs(tabs, 1);
-  assert.equal(out.length, 4, "3 tabs + new-tab");
+  assert.equal(out.length, 3, "3 tabs");
   assert.equal(out[1].isActive, true);
-  assert.equal(out[3].isNew, true);
   assert.ok(out[0].glyph === "●" && out[0].glyphColor === "text");
   assert.ok(out[1].glyph === "⚠" && out[1].glyphColor === "warning");
 });

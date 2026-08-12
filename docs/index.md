@@ -43,9 +43,8 @@ rectangular region:
 - **Active tab** is highlighted with the `selectedBg` background.
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running,
   `⚠` needs attention.
-- `×` closes a tab; `+` opens a new one.
-- Tab widths follow the session name (plus the status glyph and close control),
-  and long names truncate safely so the strip always fits the terminal.
+- Tab widths follow the session name (plus the status glyph), and long names
+  truncate safely so the strip always fits the terminal.
 - Closing the last tab is disabled.
 
 > **No mouse, no focus mode.** Pi 0.84.1 exposes no native click or hover API for

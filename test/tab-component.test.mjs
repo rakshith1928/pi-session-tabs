@@ -7,11 +7,10 @@ const fakeTheme = {
   bg: (c, t) => `BG(${c}:${t})`,
 };
 
-test("active tab is filled with selectedBg bg and shows glyph+name+close", () => {
+test("active tab is filled with selectedBg bg and shows glyph+name", () => {
   const box = createTabComponent({
     theme: fakeTheme,
-    entry: { key: "tab-0", displayName: "alpha", glyph: "●", glyphColor: "text", isActive: true, isNew: false },
-    onActivate: () => {}, onClose: () => {},
+    entry: { key: "tab-0", displayName: "alpha", glyph: "●", glyphColor: "text", isActive: true },
   });
   // Render wide enough that the (artificially long) literal fakeTheme wrappers
   // FG(...)/BG(...) don't get truncated away before the name — in production
@@ -22,18 +21,6 @@ test("active tab is filled with selectedBg bg and shows glyph+name+close", () =>
   // present; assert the glyph and name independently.
   assert.ok(flat.includes("●"), "shows glyph");
   assert.ok(flat.includes("alpha"), "shows name");
-  assert.ok(flat.includes("×"), "shows close control");
-});
-
-test("new-tab entry renders + with no close control", () => {
-  const box = createTabComponent({
-    theme: fakeTheme,
-    entry: { key: "new-tab", displayName: "+", glyph: "", glyphColor: "muted", isActive: false, isNew: true },
-    onActivate: () => {}, onClose: () => {},
-  });
-  const flat = box.render(20).join("");
-  assert.ok(flat.includes("+"));
-  assert.ok(!flat.includes("×"));
 });
 
 test("active tab uses selectedBg bg, inactive tab has no fill", () => {

@@ -142,9 +142,6 @@ export class TabManager {
         theme: mode.createExtensionUIContext().theme,
         documentContainer: mode.documentContainer,
         requestRender: () => mode.ui?.requestRender?.(),
-        onActivateTab: (i) => manager.activate(i),
-        onNewTab: () => manager.createTab(),
-        onCloseTab: (i) => manager.closeTab(i),
       }),
     );
 

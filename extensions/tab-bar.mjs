@@ -18,12 +18,7 @@ export function layoutTabs(tabs, activeIndex) {
     glyphColor: GLYPH_COLOR[tab.state] ?? GLYPH_COLOR.idle,
     state: tab.state,
     isActive: i === activeIndex,
-    isNew: false,
   }));
-  entries.push({
-    key: "new-tab", name: "", displayName: "+", glyph: "", glyphColor: "muted",
-    state: "idle", isActive: false, isNew: true,
-  });
   return entries;
 }
 
@@ -44,7 +39,7 @@ export function formatTabs(tabs, activeIndex, width) {
 /** Build the top tab-bar row from native Box/HStack TabComponents and insert it
  * above the existing header. Widths are owned by HStack (basis:"auto" + shrink +
  * minSize); TruncatedText truncates each label to its allocated width at render. */
-export function createTabBar({ Container, HStack, theme, documentContainer, requestRender, onActivateTab, onNewTab, onCloseTab }) {
+export function createTabBar({ Container, HStack, theme, documentContainer, requestRender }) {
   const root = new Container();
   const strip = new HStack([], { gap: 0, align: "start" });
   root.addChild(strip);
@@ -55,14 +50,8 @@ export function createTabBar({ Container, HStack, theme, documentContainer, requ
     update(tabs, activeIndex) {
       strip.clear();
       for (const entry of layoutTabs(tabs, activeIndex)) {
-        const closable = !entry.isNew && tabs.length > 1;
-        const comp = createTabComponent({
-          theme,
-          entry: { ...entry, canClose: closable },
-          onActivate: entry.isNew ? onNewTab : () => onActivateTab(Number(entry.key.split("-")[1])),
-          onClose: entry.isNew ? () => {} : () => onCloseTab(Number(entry.key.split("-")[1])),
-        });
-        strip.addChild(comp, { basis: "auto", shrink: 1, minSize: entry.isNew ? 1 : 3 });
+        const comp = createTabComponent({ theme, entry });
+        strip.addChild(comp, { basis: "auto", shrink: 1, minSize: 3 });
       }
       requestRender?.();
     },
