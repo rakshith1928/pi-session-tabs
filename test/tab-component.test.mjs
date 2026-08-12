@@ -24,15 +24,15 @@ test("active tab is filled with selectedBg bg and shows glyph+name", () => {
 });
 
 test("active tab uses selectedBg bg, inactive tab has no fill", () => {
-  const active = createTabComponent({ theme: fakeTheme, entry: { displayName: "a", glyph: "●", glyphColor: "text", isActive: true, isNew: false }, onActivate() {}, onClose() {} });
-  const inactive = createTabComponent({ theme: fakeTheme, entry: { displayName: "b", glyph: "○", glyphColor: "muted", isActive: false, isNew: false }, onActivate() {}, onClose() {} });
+  const active = createTabComponent({ theme: fakeTheme, entry: { displayName: "a", glyph: "●", glyphColor: "text", isActive: true } });
+  const inactive = createTabComponent({ theme: fakeTheme, entry: { displayName: "b", glyph: "○", glyphColor: "muted", isActive: false } });
   assert.ok(active.render(20).join("").includes("BG(selectedBg:"));
   assert.ok(!inactive.render(20).join("").includes("BG("));
 });
 
 test("glyph color follows state", () => {
-  const running = createTabComponent({ theme: fakeTheme, entry: { displayName: "a", glyph: "●", glyphColor: "text", isActive: false, isNew: false }, onActivate() {}, onClose() {} });
-  const attention = createTabComponent({ theme: fakeTheme, entry: { displayName: "b", glyph: "⚠", glyphColor: "warning", isActive: false, isNew: false }, onActivate() {}, onClose() {} });
+  const running = createTabComponent({ theme: fakeTheme, entry: { displayName: "a", glyph: "●", glyphColor: "text", isActive: false } });
+  const attention = createTabComponent({ theme: fakeTheme, entry: { displayName: "b", glyph: "⚠", glyphColor: "warning", isActive: false } });
   assert.ok(running.render(20).join("").includes("FG(text:●)"));
   assert.ok(attention.render(20).join("").includes("FG(warning:⚠)"));
 });
