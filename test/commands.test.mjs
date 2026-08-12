@@ -20,7 +20,7 @@ test("registerTabCommands registers the three tab commands with descriptions", (
   assert.deepEqual(Object.keys(registered).sort(), ["tabclose", "tabnew", "tabrename"]);
   assert.equal(registered.tabnew.description, "Open a new session tab — give it a name or leave it blank.");
   assert.equal(registered.tabclose.description, "Close the tab you're currently on.");
-  assert.equal(registered.tabrename.description, "Rename the current tab (type to match an existing name).");
+  assert.equal(registered.tabrename.description, "Rename the tab you're currently on.");
   // Only /tabrename offers argument completions (existing tab names).
   assert.equal(typeof registered.tabrename.getArgumentCompletions, "function");
   assert.equal(registered.tabnew.getArgumentCompletions, undefined);

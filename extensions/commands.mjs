@@ -22,7 +22,7 @@ export const TAB_COMMANDS = [
   },
   {
     name: "tabrename",
-    description: "Rename the current tab (type to match an existing name).",
+    description: "Rename the tab you're currently on.",
     // Suggest existing tab names as the rename target while typing.
     getArgumentCompletions: (prefix) => tabNameCompletions(prefix),
   },
