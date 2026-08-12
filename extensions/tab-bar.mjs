@@ -1,5 +1,29 @@
 const GLYPH = { idle: "○", running: "●", needs_attention: "⚠" };
+const GLYPH_COLOR = { idle: "muted", running: "text", needs_attention: "warning" };
 const SEP = "│";
+
+// layoutTabs intentionally does NOT truncate names. Width allocation is owned
+// entirely by HStack (basis:"auto" + shrink + minSize) and TruncatedText
+// (truncates each label to its allocated width at render). Truncating here would
+// over-truncate a single short tab that has ample room. See "Width allocation"
+// in the plan's Global Constraints.
+export function layoutTabs(tabs, activeIndex) {
+  const entries = tabs.map((tab, i) => ({
+    key: `tab-${i}`,
+    name: tab.name,
+    displayName: tab.name,
+    glyph: GLYPH[tab.state] ?? GLYPH.idle,
+    glyphColor: GLYPH_COLOR[tab.state] ?? GLYPH_COLOR.idle,
+    state: tab.state,
+    isActive: i === activeIndex,
+    isNew: false,
+  }));
+  entries.push({
+    key: "new-tab", name: "", displayName: "+", glyph: "", glyphColor: "muted",
+    state: "idle", isActive: false, isNew: true,
+  });
+  return entries;
+}
 
 /** Pure single-line rendering of the tab strip (no color). */
 export function formatTabs(tabs, activeIndex, width) {
