@@ -96,14 +96,18 @@ Entry flow:
    tab-navigation toggle).
 6. **`extensions/tab-bar.mjs`** — builds the tab strip above the header from Pi's
    native components: an `HStack` of per-tab `Box`es (each containing a
-   `TruncatedText` label) plus a `+` new-tab box. `layoutTabs()` is a **pure**
+   `TruncatedText` label = `glyph + " " + name`). `layoutTabs()` is a **pure**
    function mapping `manager.tabs` + `activeIndex` to per-tab content + flags
-   (glyph, color, active/new); `createTabBar()` assembles the `HStack`, owns
-   width allocation (`basis:"auto"` + `shrink`), and re-renders on every
-   update. The active tab is filled with the accent background; inactive tabs
-   are subdued; each tab shows an in-tab status glyph (`○` idle / `●` running /
-   `⚠` needs_attention) plus a `×` close control. Interaction is native
-   keyboard only (see Commands & keys); mouse clicks are deferred.
+   (glyph, color, active); `createTabBar()` assembles the `HStack`, owns width
+   allocation via an explicit per-tab `basis = visibleWidth(glyph + " " + name) + 2`
+   with `grow:0` / `shrink:1` / `minSize:3` (leftover terminal width stays after
+   the strip; the longest tab truncates first when tight), and re-renders on
+   every update. The active tab is filled with the `selectedBg` background;
+   inactive tabs are subdued; each tab shows a status glyph (`○` idle / `●` running
+   / `⚠` needs attention). There is no `+`/`×` control — the strip is
+   informational only; creation/closing/rename go through the `/tabnew`
+   `/tabclose` `/tabrename` commands and `Alt+Left`/`Alt+Right` cycle. Mouse
+   clicks are deferred.
 
 ### Key invariants (preserve these or you will break the host)
 
@@ -133,9 +137,28 @@ Entry flow:
 ## Development
 
 ```sh
-npm test          # runs node:test across test/*.test.mjs (37 tests, no Pi running)
+npm test          # runs node:test across test/*.test.mjs (54 tests, no Pi running)
 node --test       # equivalent
+pi -e .           # boot Pi with the local extension for manual / interactive checks
 ```
+
+Contributor loop:
+
+```sh
+git clone <repo>
+cd pi-session-tabs
+
+npm test
+pi -e .
+
+# make your changes, then repeat:
+npm test
+pi -e .
+```
+
+`npm test` must stay green (it never touches a real Pi). `pi -e .` boots an
+interactive Pi session with the local extension loaded so you can verify the tab
+bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
 
 - Tests **never touch real Pi classes.** They inject fake `AgentSessionRuntime` /
   `AgentSession` / `InteractiveMode` / `SessionManager` and stub `mode`/`session`.

@@ -27,3 +27,19 @@ Steps
 Run
 
 npm test (node --test via jiti) must pass.
+
+Contributor loop
+
+```sh
+git clone <repo>
+cd pi-session-tabs
+
+npm test
+pi -e .
+
+# make your changes, then repeat:
+npm test
+pi -e .
+```
+
+npm test must pass (it never touches a real Pi). pi -e . boots Pi with the local extension so you can exercise the new command.

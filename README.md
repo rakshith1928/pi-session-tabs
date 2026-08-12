@@ -61,3 +61,21 @@ Pi itself is untouched.
 - Pi 0.84.1.
 
 Patches are existence-guarded and degrade gracefully on other Pi versions. When the installed host version can be inspected, the package emits a best-effort warning for a version mismatch; unavailable version metadata does not prevent Pi from starting.
+
+## Development
+
+For contributors, the loop is just:
+
+```sh
+git clone <repo>
+cd pi-session-tabs
+
+npm test     # all tests green before you start
+pi -e .      # boot Pi with the local extension for interactive checks
+
+# make your changes, then repeat:
+npm test
+pi -e .
+```
+
+`npm test` runs the `node:test` suite (it never touches a real Pi). `pi -e .` boots an interactive Pi session with the local extension loaded, so you can exercise the tab bar, the `/tab*` commands, and `Alt+Left`/`Alt+Right` by hand. `AGENTS.md` covers the architecture, invariants, and test conventions.

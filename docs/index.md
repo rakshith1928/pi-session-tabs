@@ -82,3 +82,24 @@ OpenCode v2 model.
 See `README.md` → *Known limitations* for the full list. Highlights: tabs are not
 restored as a group across restarts, shared Pi chrome is last-writer-wins, and
 mouse interaction is deferred.
+
+## For contributors
+
+This package ships as a Pi extension with no build step. The contributor loop is:
+
+```sh
+git clone <repo>
+cd pi-session-tabs
+
+npm test     # all tests green before you start
+pi -e .      # boot Pi with the local extension for interactive checks
+
+# make your changes, then repeat:
+npm test
+pi -e .
+```
+
+`npm test` runs the `node:test` suite (it never touches a real Pi). `pi -e .` boots
+an interactive Pi session with the local extension loaded so you can exercise the
+tab bar, the `/tab*` commands, and `Alt+Left`/`Alt+Right` by hand. `AGENTS.md` has
+the architecture, invariants, and test conventions.
