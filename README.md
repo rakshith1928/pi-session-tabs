@@ -1,7 +1,13 @@
+```text
+┌──────────────────────────────┐
+│  pi-session-tabs             │
+└──────────────────────────────┘
+```
+
 <p align="center">
-  <b>pi-session-tabs</b><br />
   <span>OpenCode v2-style multi-session tabs for Pi</span>
 </p>
+
 
 <p align="center">
   <a href="https://www.npmjs.com/package/pi-session-tabs"><img alt="npm" src="https://img.shields.io/npm/v/pi-session-tabs?style=flat-square" /></a>
