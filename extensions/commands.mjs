@@ -14,15 +14,15 @@ import { parseTabCommand } from "./tab-manager.mjs";
 export const TAB_COMMANDS = [
   {
     name: "tabnew",
-    description: "Open a new session tab (optionally named)",
+    description: "Open a new session tab — give it a name or leave it blank.",
   },
   {
     name: "tabclose",
-    description: "Close the current session tab",
+    description: "Close the tab you're currently on.",
   },
   {
     name: "tabrename",
-    description: "Rename the current session tab",
+    description: "Rename the current tab (type to match an existing name).",
     // Suggest existing tab names as the rename target while typing.
     getArgumentCompletions: (prefix) => tabNameCompletions(prefix),
   },
