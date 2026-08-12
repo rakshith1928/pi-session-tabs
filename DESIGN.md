@@ -119,7 +119,7 @@ if (typeof AgentSessionRuntime.prototype.attachSession !== "function") {
 
 | Hook | Purpose |
 |---|---|
-| Wrap `InteractiveMode.prototype.init` | After original `init()` completes: register the CLI-created session as tab 0 (name from `sessionManager.getSessionName()` or `cwd` basename or "tab 1"), install tab bar (§6), wrap `defaultEditor.onSubmit` (§7), register Alt+arrow listener (§8), wire per-tab status subscriptions. |
+| Wrap `InteractiveMode.prototype.init` | After original `init()` completes: register the CLI-created session as tab 0 (name from `sessionManager.getSessionName()` or `cwd` basename or "tab 1"), install tab bar (§6), register /tabnew /tabclose /tabrename as Pi slash commands, register Alt+arrow listener (§8), wire per-tab status subscriptions. |
 | Wrap `InteractiveMode.prototype.rebindCurrentSession` | Detect foreground changes from **any** source (attach, or destructive `/new` `/resume` `/fork` `/reload`): capture previous session, call original, then reconcile registry — if new session not in registry, add a tab entry; re-install tab bar (idempotent). |
 | Wrap `AgentSession.prototype.dispose` | Remove the disposed session's tab from the registry (covers `/tabclose` and destructive replacement teardown). Runs after original dispose. |
 | Wrap `AgentSession.prototype.bindExtensions` | First-bind vs re-attach discrimination + startup-emit suppression (§12). |

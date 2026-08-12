@@ -91,7 +91,9 @@ Entry flow:
    the active tab, a `TruncatedText` label (`glyph + name + ×`), and a `+` box
    for the new-tab entry. `onActivate`/`onClose` are unused inside the component
    (Pi 0.84.1 has no `onClick` API); they are wired by the strip for the deferred
-   mouse track.
+   mouse track. Interaction is keyboard-only — there is **no focus mode**
+   (intentionally not implemented; Pi 0.84.1 has no clean free key for a
+   tab-navigation toggle).
 6. **`extensions/tab-bar.mjs`** — builds the tab strip above the header from Pi's
    native components: an `HStack` of per-tab `Box`es (each containing a
    `TruncatedText` label) plus a `+` new-tab box. `layoutTabs()` is a **pure**
