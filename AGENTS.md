@@ -104,7 +104,8 @@ Entry flow:
    keyboard-only — there is **no focus mode** (intentionally not implemented; Pi
    0.84.1 has no clean free key for a tab-navigation toggle).
 7. **`extensions/tab-bar.mjs`** — builds the tab strip above the header from Pi's
-   native components: an `HStack` of per-tab `Box`es (each containing a
+   native components (mounted only while two or more tabs exist — a single-tab
+   session looks like normal Pi): an `HStack` of per-tab `Box`es (each containing a
    `TruncatedText` label = `glyph + " " + name`). `layoutTabs()` is a **pure**
    function mapping `manager.tabs` + `activeIndex` to per-tab content + flags
    (glyph, color, active); `createTabBar()` assembles the `HStack`, owns width

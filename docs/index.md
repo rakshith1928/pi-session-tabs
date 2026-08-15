@@ -37,8 +37,9 @@ descriptions and are never forwarded to the model.
 
 ## The tab bar
 
-A native TUI strip is rendered above Pi's normal header. Each tab is a distinct
-rectangular region:
+A native TUI strip is rendered above Pi's header **only while two or more tabs
+are open** — with a single tab Pi looks exactly as normal (no strip). Each tab is a
+distinct rectangular region:
 
 - **Active tab** is highlighted with the `selectedBg` background.
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running,

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TabManager } from "../extensions/tab-manager.mjs";
 import { parseTabCommand, hasOverlay, altTabDirection, plainArrowDirection, makeAltArrowListener } from "../extensions/tab-manager.mjs";
+import { createTabBar } from "../extensions/tab-bar.mjs";
 
 function stubSession(id, { isStreaming = false } = {}) {
   const listeners = [];
@@ -457,4 +458,44 @@ test("closeTab refuses when only one tab remains", () => {
   const mgr = makeManagerWithTabs(1);
   mgr.closeTab(0);
   assert.equal(mgr.tabs.length, 1);
+});
+
+test("tab strip is hidden with a single tab and appears only with a second tab", async () => {
+  const sessionA = stubSession("s1");
+  const sessionB = stubSession("s2");
+  const runtime = {
+    session: sessionA,
+    async __piSessionTabsAttachSession(s) { this.session = s; },
+    async __piSessionTabsCreateTabSession() { return { session: sessionB }; },
+  };
+  const doc = { children: [] };
+  const ed = { getText: () => "", setText() {} };
+  const mode = {
+    runtimeHost: runtime,
+    ui: { requestRender() {} },
+    editor: ed,
+    defaultEditor: ed,
+    documentContainer: doc,
+    showStatus() {},
+  };
+  const m = new TabManager({ mode });
+  m.addTab(sessionA, { name: "Main", boundBefore: true });
+  const FakeHStack = class { constructor() { this.children = []; } addChild(c, o) { this.children.push({ c, o }); } clear() { this.children = []; } render() { return [""]; } invalidate() {} };
+  const FakeContainer = class { constructor() { this.children = []; } addChild(c) { this.children.push(c); } render() { return [""]; } invalidate() {} };
+  m.setBar(
+    createTabBar({
+      Container: FakeContainer,
+      HStack: FakeHStack,
+      theme: { fg: (c, t) => t, bg: (c, t) => t },
+      documentContainer: doc,
+      requestRender() {},
+    }),
+  );
+  assert.equal(doc.children.length, 0, "no strip with a single tab (normal Pi look)");
+  await m.createTab("two");
+  assert.equal(doc.children.length, 1, "strip appears with a second tab");
+  assert.equal(m.bar.strip.children.length, 2, "strip has two tab components");
+  await m.closeTab(1);
+  assert.equal(m.tabs.length, 1, "back to a single tab");
+  assert.equal(doc.children.length, 0, "strip hidden again with one tab");
 });

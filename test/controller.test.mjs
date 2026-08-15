@@ -128,7 +128,7 @@ test("ensureManager wires a stub mode once (bar, submit wrap, alt listener, init
   assert.equal(mode.__tabManager, m1);
   assert.equal(m1.tabs.length, 1);
   assert.equal(m1.tabs[0].name, "Main");
-  assert.equal(mode.documentContainer.children.length, 1, "tab bar installed");
+  assert.equal(mode.documentContainer.children.length, 0, "strip hidden while a single tab exists (normal Pi look)");
   assert.equal(typeof mode.defaultEditor.onSubmit, "function", "submit handler present (commands now dispatched via Pi slash-command registry)");
   assert.equal(typeof mode.ui._listener, "function", "alt listener registered");
   const m2 = c.ensureManager(mode);

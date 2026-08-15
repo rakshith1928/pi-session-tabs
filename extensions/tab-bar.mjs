@@ -32,10 +32,21 @@ export function createTabBar({ Container, HStack, theme, documentContainer, requ
   const root = new Container();
   const strip = new HStack([], { gap: 0, align: "start" });
   root.addChild(strip);
-  documentContainer.children.unshift(root);
   return {
     container: root,
     strip,
+    // Mount/unmount the strip above the header. The manager only mounts it
+    // while two or more tabs exist, so a single-tab session looks exactly
+    // like normal Pi (no strip).
+    mount() {
+      if (documentContainer.children.indexOf(root) === -1) documentContainer.children.unshift(root);
+      requestRender?.();
+    },
+    unmount() {
+      const i = documentContainer.children.indexOf(root);
+      if (i !== -1) documentContainer.children.splice(i, 1);
+      requestRender?.();
+    },
     update(tabs, activeIndex) {
       strip.clear();
       for (const entry of layoutTabs(tabs, activeIndex)) {

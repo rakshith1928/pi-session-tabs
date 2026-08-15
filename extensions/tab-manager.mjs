@@ -237,6 +237,7 @@ export class TabManager {
     this._chain = Promise.resolve();
     this._statePath = undefined; // set by restoreTabs; remembered for saves
     this._restored = false;
+    this.barVisible = false; // strip is mounted only while two or more tabs exist
     // Pi swaps runtimeHost.session before invoking its rebind callback. Keep
     // the last known foreground identity so replacement reconciliation can
     // distinguish the outgoing session from the incoming one.
@@ -553,6 +554,14 @@ export class TabManager {
 
   updateBar() {
     if (!this.bar || this.shuttingDown) return;
+    // Show the strip only while two or more tabs exist: a single-tab session
+    // must look exactly like normal Pi.
+    const visible = this.tabs.length > 1;
+    if (visible !== this.barVisible) {
+      if (visible) this.bar.mount();
+      else this.bar.unmount();
+      this.barVisible = visible;
+    }
     this.bar.update(
       this.tabs.map((t) => ({ name: t.name, state: t.state })),
       this.activeIndex,
