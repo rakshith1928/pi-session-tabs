@@ -78,6 +78,7 @@ A native TUI strip is rendered above Pi's normal header. Each tab is a distinct 
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running, `⚠` needs attention.
 - Tab widths follow the session name (plus the status glyph), and long names truncate safely so the strip always fits the terminal.
 - Tabs start from the name you give them (or a `tab N` placeholder); unnamed tabs adopt the session title Pi generates, and explicit names (via `/tabnew <name>` or `/tabrename`) are kept.
+- **Across restarts** the tab set is restored per project — tabs, names, and the active tab come back; per-tab editor drafts are not persisted.
 - Closing the last tab is disabled.
 
 > **No mouse, no focus mode.** Pi 0.84.1 exposes no native click or hover API for extension widgets, so tabs are keyboard-driven (`Alt+Left` / `Alt+Right` and the `/tab*` commands). Click-to-switch is a deferred future enhancement.
@@ -88,14 +89,13 @@ Each tab backs a real `AgentSession`. One tab is foreground at a time; switching
 
 ## Architecture
 
-This is a Pi package extension. During startup its top-level module installs additive, guarded patches before Pi constructs `InteractiveMode`. A controller stored on `globalThis` survives extension reloads and keeps one `TabManager` per running mode. The implementation uses eight guarded integration points, while `TabManager` owns session registration, switching, lifecycle, drafts, and status; `TabBar` renders the shared tab strip.
+This is a Pi package extension. During startup its top-level module installs additive, guarded patches before Pi constructs `InteractiveMode`. A controller stored on `globalThis` survives extension reloads and keeps one `TabManager` per running mode. The implementation uses nine guarded integration points, while `TabManager` owns session registration, switching, lifecycle, drafts, and status; `TabBar` renders the shared tab strip.
 
 See `AGENTS.md` for the architecture, invariants, and test conventions, and `docs/index.md` for the full user guide.
 
 ## Known limitations
 
 - Shared Pi chrome (header, footer, widgets, and status) is last-writer-wins between sessions.
-- Tabs are not restored across restarts; Pi restores its normal session, but the tab set is not persisted as a group.
 - `Alt+Left` / `Alt+Right` shadow Pi editor word movement only while two or more tabs are open; with a single tab the keys pass through to the editor.
 - Tab-name truncation uses ASCII-width assumptions rather than terminal display width.
 - `needs_attention` is derived only from structural session events, including an assistant message with `stopReason: "error"`; it does not classify arbitrary error text.

@@ -62,12 +62,15 @@ Entry flow:
    `/tabnew`, `/tabclose`, `/tabrename` as Pi slash commands (with descriptions
    and `/tabrename` name-completions) that delegate to the controller's
    `handleTabCommand`.
-4. **`extensions/patches.mjs`** — **the integration surface.** Eight guarded
+4. **`extensions/patches.mjs`** — **the integration surface.** Nine guarded
    integration points, all pure factory functions (`makeX(orig, opts) => fn`):
    - `AgentSessionRuntime.__piSessionTabsAttachSession` — non-destructive
      session swap (`_session` + `finishSessionReplacement`, no teardown).
    - `AgentSessionRuntime.__piSessionTabsCreateTabSession` — creates an
      independent persisted session via the runtime's own factory.
+   - `AgentSessionRuntime.__piSessionTabsOpenTabSession` — opens an existing
+     persisted session file via the runtime's own factory (`SessionManager.open`,
+     the same primitive `/resume` uses) for cross-restart tab restore.
    - `AgentSession.bindExtensions` — wrapped so re-bind suppresses the
      `session_start` emit and resource rediscovery on background sessions.
    - `AgentSession.dispose` — wrapped to notify registry cleanup.
@@ -87,7 +90,11 @@ Entry flow:
    `needs_attention`) and tab naming: an explicit name (the initial `Main`
    tab, `/tabnew <name>`, `/tabrename`) is a user override (`tab.userRenamed`),
    while unnamed tabs adopt Pi's generated title when the session emits
-   `session_info_changed` (the same event `setSessionName` emits). `closeTab(index)`
+   `session_info_changed` (the same event `setSessionName` emits). The tab set
+   (session file, name, active tab) is persisted per project under the Pi agent
+   dir (`stateFilePath`) and fully restored on the next start (`restoreTabs` +
+   `planRestore`): the previously active tab is re-activated, and Pi's fresh
+   startup session becomes a `new` tab; drafts are not persisted. `closeTab(index)`
    closes a specific tab (delegating to `closeActive()` when it is the active
    one) and keeps the foreground stable.
 6. **`extensions/tab-component.mjs`** — `createTabComponent({ theme, entry })`
@@ -188,7 +195,8 @@ bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
 
 - Shared Pi chrome (header, footer, widgets, status) is last-writer-wins between
   sessions.
-- Tabs are not restored as a group across restarts.
+- Per-tab editor drafts are not persisted across restarts (the tab set itself —
+  files, names, active tab — is restored; see `restoreTabs`).
 - `Alt+Left` / `Alt+Right` shadow Pi editor word movement only while two or more
   tabs are open; with a single tab the keys pass through to the editor.
 - Tab-name truncation is single-line via `TruncatedText` (allocated width from

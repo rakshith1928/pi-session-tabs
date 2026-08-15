@@ -43,6 +43,17 @@ export function makeCreateTabSession(SessionManager) {
   };
 }
 
+/** Open an existing persisted session file via the runtime's own factory (like /resume, without teardown). */
+export function makeOpenTabSession(SessionManager) {
+  return async function __piSessionTabsOpenTabSession(file) {
+    return this.createRuntime({
+      cwd: this.cwd,
+      agentDir: this.services.agentDir,
+      sessionManager: SessionManager.open(file),
+    });
+  };
+}
+
 /**
  * Wrap AgentSession.bindExtensions. First bind behaves exactly like the original
  * (emits session_start, rediscovers resources). Re-attach rebinds uiContext /
@@ -194,6 +205,7 @@ export function installPatches({ AgentSessionRuntime, AgentSession, InteractiveM
 
   apply(AgentSessionRuntime, "__piSessionTabsAttachSession", makeAttachSession());
   apply(AgentSessionRuntime, "__piSessionTabsCreateTabSession", makeCreateTabSession(SessionManager));
+  apply(AgentSessionRuntime, "__piSessionTabsOpenTabSession", makeOpenTabSession(SessionManager));
 
   const { onBindExtensions, onSessionDisposed } = hooks;
   const bindExtensionsWrapper = makeBindExtensionsWrapper(AgentSession.prototype.bindExtensions, { onBindExtensions });

@@ -64,6 +64,12 @@ placeholder and adopts the title Pi generates for the session, while explicit
 names (via `/tabnew <name>` or `/tabrename`) are kept as overrides. The initial
 foreground tab is always labeled `Main`.
 
+Across restarts the tab set is restored per project: tabs, names, and the active
+tab come back (Pi re-opens each tab's session file), and the tab you were on is
+reactivated. Per-tab editor drafts are not persisted. If you start with
+`pi --continue` inside a previously saved conversation, that tab is recognized
+and not duplicated.
+
 ## Requirements & compatibility
 
 - **Pi 0.84.1** is pinned; patches are existence-guarded and degrade gracefully on
@@ -84,9 +90,9 @@ foreground tab is always labeled `Main`.
 
 ## Limitations
 
-See `README.md` → *Known limitations* for the full list. Highlights: tabs are not
-restored as a group across restarts, shared Pi chrome is last-writer-wins, and
-mouse interaction is deferred.
+See `README.md` → *Known limitations* for the full list. Highlights: shared Pi
+chrome is last-writer-wins, per-tab editor drafts are not persisted across
+restarts (tabs and names are), and mouse interaction is deferred.
 
 ## For contributors
 

@@ -38,6 +38,9 @@ export class SessionTabsController {
     }
     this.mode = mode;
     this.manager = TabManager.attach(mode, { Container: this.tui.Container, HStack: this.tui.HStack });
+    // Restore the saved tab set for this project (best effort; no-ops on the
+    // first run). Fire-and-forget so startup is never blocked by it.
+    void this.manager.restoreTabs();
     return this.manager;
   }
 

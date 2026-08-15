@@ -1,6 +1,7 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createTabBar } from "./tab-bar.mjs";
 import { HStack } from "@earendil-works/pi-tui";
 
@@ -120,6 +121,72 @@ export function hasOverlay(mode) {
   ) || mode.editor !== mode.defaultEditor;
 }
 
+// ---------------------------------------------------------------------------
+// Tab-set persistence (restore across restarts)
+// ---------------------------------------------------------------------------
+
+/** Per-project state file path under the Pi agent dir (never inside the user's repo). */
+export function stateFilePath(agentDir, cwd) {
+  const hash = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
+  return join(agentDir, "session-tabs", `${hash}.json`);
+}
+
+/**
+ * Validate raw state-file JSON. Returns { tabs: [{file, name?}], activeIndex }
+ * or null when the payload is unusable (bad JSON, wrong version, cwd mismatch,
+ * no valid entries). `name` is undefined for entries saved without one.
+ */
+export function parseTabState(raw, cwd) {
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!data || data.version !== 1 || data.cwd !== cwd) return null;
+  if (!Array.isArray(data.tabs)) return null;
+  const tabs = [];
+  for (const t of data.tabs) {
+    if (!t || typeof t.file !== "string" || t.file === "") continue;
+    tabs.push({ file: t.file, name: typeof t.name === "string" && t.name !== "" ? t.name : undefined });
+  }
+  if (tabs.length === 0) return null;
+  const activeIndex =
+    Number.isInteger(data.activeIndex) && data.activeIndex >= 0 && data.activeIndex < tabs.length
+      ? data.activeIndex
+      : 0;
+  return { tabs, activeIndex };
+}
+
+/**
+ * Decide how to restore a validated state against Pi's startup session.
+ * `foregroundFile` is the session file Pi started with (null when it has
+ * none). `exists` is injectable for tests. Returns {
+ *   matched:  boolean,                 // Pi started inside a saved tab's session
+ *   startup:  { name, userRenamed },   // what to rename the initial tab to
+ *   open:     [{ index, file, name }], // saved tabs to open in the background
+ *   activate: number | null,           // state index to activate after opening
+ * }
+ */
+export function planRestore(state, foregroundFile, exists = (f) => existsSync(f)) {
+  const matchedIndex = foregroundFile ? state.tabs.findIndex((t) => t.file === foregroundFile) : -1;
+  const open = [];
+  state.tabs.forEach((t, index) => {
+    if (index !== matchedIndex && exists(t.file)) open.push({ index, file: t.file, name: t.name });
+  });
+  const startup =
+    matchedIndex !== -1
+      ? { name: state.tabs[matchedIndex].name ?? "Main", userRenamed: true }
+      : open.length > 0
+        ? { name: "new", userRenamed: false } // fresh Pi session; auto-title may adopt it
+        : { name: "Main", userRenamed: true }; // nothing restorable — unchanged
+  const activate =
+    matchedIndex === state.activeIndex || !open.some((o) => o.index === state.activeIndex)
+      ? null
+      : state.activeIndex;
+  return { matched: matchedIndex !== -1, startup, open, activate };
+}
+
 export class TabManager {
   static attach(mode, { Container, HStack }) {
     const manager = new TabManager({ mode });
@@ -168,6 +235,8 @@ export class TabManager {
     this.bar = undefined; // installed by attach (Task 10 wiring) via setBar
     this._unsubAlt = undefined;
     this._chain = Promise.resolve();
+    this._statePath = undefined; // set by restoreTabs; remembered for saves
+    this._restored = false;
     // Pi swaps runtimeHost.session before invoking its rebind callback. Keep
     // the last known foreground identity so replacement reconciliation can
     // distinguish the outgoing session from the incoming one.
@@ -192,6 +261,7 @@ export class TabManager {
       }
     }
     await this.activate(this.tabs.indexOf(tab));
+    this._saveState();
   }
 
   async activate(index) {
@@ -214,6 +284,7 @@ export class TabManager {
       this.activeIndex = index;
       this._applyDrafts(prev, target.session);
       this.updateBar();
+      this._saveState();
       return true;
     });
   }
@@ -251,6 +322,7 @@ export class TabManager {
     }
     if (this.tabs.includes(closing)) this.removeTab(closing);
     this.updateBar();
+    this._saveState();
   }
 
   closeTab(index) {
@@ -263,6 +335,7 @@ export class TabManager {
     if (index < this.activeIndex) this.activeIndex -= 1; // keep foreground stable
     removed?.session.dispose?.();
     this.updateBar();
+    this._saveState();
   }
 
   renameActive(name) {
@@ -283,6 +356,76 @@ export class TabManager {
     }
     tab.name = name;
     this.updateBar();
+    this._saveState();
+  }
+
+  /** Persist the tab set for this project (best effort; never throws). */
+  _saveState() {
+    const path = this._statePath;
+    const cwd = this.runtime.cwd;
+    if (!path || !cwd) return;
+    try {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(
+        path,
+        JSON.stringify({
+          version: 1,
+          cwd,
+          activeIndex: this.activeIndex,
+          tabs: this.tabs.map((t) => ({ file: t.session?.sessionFile ?? null, name: t.name })),
+        }),
+      );
+    } catch {
+      /* restore is a convenience; persistence failures stay silent */
+    }
+  }
+
+  /**
+   * Restore the saved tab set for this project (full restore). Pi's startup
+   * session stays a tab; saved tabs are reopened in the background and the
+   * previously active tab is activated. Best effort: missing/corrupt state or
+   * session files degrade to the single-tab startup and are never fatal.
+   */
+  async restoreTabs() {
+    if (this._restored) return;
+    this._restored = true;
+    const cwd = this.runtime.cwd;
+    const agentDir = this.runtime.services?.agentDir;
+    if (!cwd || !agentDir) return;
+    this._statePath = stateFilePath(agentDir, cwd);
+    let raw;
+    try {
+      raw = readFileSync(this._statePath, "utf8");
+    } catch {
+      return; // no saved state — first run, nothing to restore
+    }
+    const state = parseTabState(raw, cwd);
+    if (!state) return;
+    const plan = planRestore(state, this.runtime.session?.sessionFile);
+    const startup = this.tabs[0];
+    if (startup) {
+      startup.name = plan.startup.name;
+      startup.userRenamed = plan.startup.userRenamed;
+    }
+    const opened = new Map(); // state index -> tab
+    for (const entry of plan.open) {
+      try {
+        const result = await this.runtime.__piSessionTabsOpenTabSession(entry.file);
+        const name = entry.name ?? result.session.sessionManager?.getSessionName?.() ?? undefined;
+        opened.set(entry.index, this.addTab(result.session, { name }));
+      } catch {
+        /* skip unreadable session file */
+      }
+    }
+    if (plan.activate !== null && opened.has(plan.activate)) {
+      await this.activate(this.tabs.indexOf(opened.get(plan.activate)));
+    }
+    const restored = opened.size + (plan.matched ? 1 : 0);
+    if (restored < state.tabs.length) {
+      this.mode.showStatus?.(`Restored ${restored} of ${state.tabs.length} tabs (missing or unreadable session files)`);
+    } else if (restored > 1) {
+      this.mode.showStatus?.(`Restored ${restored} tabs from last session`);
+    }
   }
 
   addTab(session, { name, draft = "", boundBefore = false } = {}) {
