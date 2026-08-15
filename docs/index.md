@@ -29,6 +29,11 @@ descriptions and are never forwarded to the model.
 | `/tabclose` | Close the active tab. | The last remaining tab cannot be closed. |
 | `/tabrename <name>` | Rename the active tab. | Typing suggests existing tab names. |
 
+Pi's built-ins are not intercepted. `/new` starts a brand-new session and the
+active tab is replaced in place (the old conversation stays on disk and can be
+reopened with `/resume`); `/resume` swaps the active tab for the resumed
+session, keeping its saved name.
+
 ## Keyboard
 
 | Key | Action |

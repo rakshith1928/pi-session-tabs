@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TabManager } from "../extensions/tab-manager.mjs";
-import { parseTabCommand, hasOverlay, altTabDirection, plainArrowDirection, makeAltArrowListener } from "../extensions/tab-manager.mjs";
+import { parseTabCommand, hasOverlay, altTabDirection, plainArrowDirection, makeAltArrowListener, nextTabName } from "../extensions/tab-manager.mjs";
 import { createTabBar } from "../extensions/tab-bar.mjs";
 
 function stubSession(id, { isStreaming = false } = {}) {
@@ -498,4 +498,84 @@ test("tab strip is hidden with a single tab and appears only with a second tab",
   await m.closeTab(1);
   assert.equal(m.tabs.length, 1, "back to a single tab");
   assert.equal(doc.children.length, 0, "strip hidden again with one tab");
+});
+
+test("nextTabName picks the smallest free placeholder", () => {
+  assert.equal(nextTabName([]), "tab 1");
+  assert.equal(nextTabName([{ name: "Main" }]), "tab 1");
+  assert.equal(nextTabName([{ name: "tab 1" }]), "tab 2");
+  assert.equal(nextTabName([{ name: "tab 1" }, { name: "tab 3" }]), "tab 2");
+  assert.equal(nextTabName([{ name: "tab 1" }, { name: "tab 2" }]), "tab 3");
+});
+
+test("/new-style replacement: incoming session replaces the disposed tab in place", () => {
+  const oldS = stubSession("s1");
+  const bg = stubSession("s2");
+  const newS = stubSession("s3"); // no sessionManager name → placeholder
+  const mode = stubMode(oldS);
+  const m = new TabManager({ mode });
+  m.addTab(oldS, { name: "Main", boundBefore: true });
+  m.addTab(bg, { name: "tab 2" });
+  // Pi's /new: teardownCurrent disposes the outgoing session, then
+  // finishSessionReplacement rebinds to the fresh session.
+  m.onSessionDisposed(oldS);
+  mode.runtimeHost.session = newS;
+  m.onForegroundChanged(oldS, newS);
+  assert.equal(m.tabs.length, 2);
+  assert.equal(m.tabs[0].session, newS, "new session takes the old tab's slot");
+  assert.equal(m.tabs[1].session, bg, "background tab untouched");
+  assert.equal(m.activeIndex, 0, "replacement is the foreground");
+  assert.equal(m.foregroundSession, newS);
+  assert.notEqual(m.tabs[0].name, "tab 2", "placeholder does not collide with an existing name");
+  assert.equal(m.tabs[0].userRenamed, false, "fresh session may adopt Pi's generated title later");
+});
+
+test("/new-style replacement with a single tab stays a single (unnamed-placeholder) tab", () => {
+  const oldS = stubSession("s1");
+  const newS = stubSession("s2");
+  const mode = stubMode(oldS);
+  const m = new TabManager({ mode });
+  m.addTab(oldS, { name: "Main", boundBefore: true });
+  m.onSessionDisposed(oldS);
+  mode.runtimeHost.session = newS;
+  m.onForegroundChanged(oldS, newS);
+  assert.equal(m.tabs.length, 1);
+  assert.equal(m.tabs[0].session, newS);
+  assert.equal(m.tabs[0].name, "tab 1", "fresh placeholder");
+  assert.equal(m.activeIndex, 0);
+});
+
+test("resume-style replacement keeps the incoming session's saved name", () => {
+  const oldS = stubSession("s1");
+  const bg = stubSession("s2");
+  const resumed = { ...stubSession("s3"), sessionManager: { getSessionName: () => "Research" } };
+  const mode = stubMode(oldS);
+  const m = new TabManager({ mode });
+  m.addTab(oldS, { name: "Main", boundBefore: true });
+  m.addTab(bg, { name: "tab 2" });
+  m.onSessionDisposed(oldS);
+  mode.runtimeHost.session = resumed;
+  m.onForegroundChanged(oldS, resumed);
+  assert.equal(m.tabs[0].session, resumed);
+  assert.equal(m.tabs[0].name, "Research", "saved name wins over placeholder");
+  assert.equal(m.tabs[0].userRenamed, true);
+});
+
+test("non-foreground dispose does not reserve a replacement slot", () => {
+  const a = stubSession("s1");
+  const bg = stubSession("s2");
+  const late = stubSession("s3");
+  const mode = stubMode(a);
+  const m = new TabManager({ mode });
+  m.addTab(a, { name: "Main", boundBefore: true });
+  m.addTab(bg, { name: "tab 2" });
+  // A background tab is disposed (e.g. closeTab): its slot must not be
+  // reserved for the next unknown foreground change.
+  m.onSessionDisposed(bg);
+  assert.equal(m.tabs.length, 1);
+  mode.runtimeHost.session = late;
+  m.onForegroundChanged(a, late);
+  assert.equal(m.tabs.length, 2);
+  assert.equal(m.tabs[1].session, late, "appended, not inserted at the disposed slot");
+  assert.equal(m.activeIndex, 1);
 });

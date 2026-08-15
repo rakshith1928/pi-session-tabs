@@ -121,6 +121,14 @@ export function hasOverlay(mode) {
   ) || mode.editor !== mode.defaultEditor;
 }
 
+/** Smallest `tab N` placeholder not already used by an existing tab name. */
+export function nextTabName(tabs) {
+  const used = new Set(tabs.map((t) => t.name));
+  let n = 1;
+  while (used.has(`tab ${n}`)) n++;
+  return `tab ${n}`;
+}
+
 // ---------------------------------------------------------------------------
 // Tab-set persistence (restore across restarts)
 // ---------------------------------------------------------------------------
@@ -238,6 +246,7 @@ export class TabManager {
     this._statePath = undefined; // set by restoreTabs; remembered for saves
     this._restored = false;
     this.barVisible = false; // strip is mounted only while two or more tabs exist
+    this._replacedAt = undefined; // slot of a just-disposed foreground tab (see onSessionDisposed)
     // Pi swaps runtimeHost.session before invoking its rebind callback. Keep
     // the last known foreground identity so replacement reconciliation can
     // distinguish the outgoing session from the incoming one.
@@ -429,10 +438,10 @@ export class TabManager {
     }
   }
 
-  addTab(session, { name, draft = "", boundBefore = false } = {}) {
+  addTab(session, { name, draft = "", boundBefore = false, index = undefined } = {}) {
     const tab = {
       id: session.sessionId,
-      name: name ?? `tab ${this.tabs.length + 1}`,
+      name: name ?? nextTabName(this.tabs),
       session,
       state: session.isStreaming ? "running" : "idle",
       draft,
@@ -445,8 +454,15 @@ export class TabManager {
     };
     if (boundBefore) session.__tabsFirstBind = true;
     tab.unsubscribe = this.subscribeStatus(tab);
-    this.tabs.push(tab);
-    if (this.tabs.length === 1) this.activeIndex = 0;
+    if (this.tabs.length === 0) {
+      this.tabs.push(tab);
+      this.activeIndex = 0;
+    } else {
+      // `index` lets a replacement tab take a specific slot (e.g. where the
+      // outgoing session's tab just sat); by default append at the end.
+      const at = index === undefined ? this.tabs.length : Math.max(0, Math.min(index, this.tabs.length));
+      this.tabs.splice(at, 0, tab);
+    }
     this.updateBar();
     return tab;
   }
@@ -520,17 +536,30 @@ export class TabManager {
     this._applyDrafts(prev, next);
     let nextTab = this.findBySession(next);
     if (!nextTab) {
-      const name = next.sessionManager?.getSessionName?.() || `tab ${this.tabs.length + 1}`;
-      nextTab = this.addTab(next, { name });
+      // Unknown incoming session. Pi's built-in /new, /resume and fork first
+      // dispose the outgoing foreground (removing its tab) and then rebind to
+      // the new session: take the old tab's slot so the tab bar reflects an
+      // in-place replacement (vanilla Pi semantics) instead of an append. The
+      // placeholder name is fresh so Pi's auto-title can adopt it later.
+      const inPlace = prev === this.foregroundSession && this._replacedAt !== undefined;
+      const index = inPlace ? Math.max(0, Math.min(this._replacedAt, this.tabs.length)) : undefined;
+      this._replacedAt = undefined;
+      const name = next.sessionManager?.getSessionName?.() || undefined;
+      nextTab = this.addTab(next, { name, index });
     }
     this.activeIndex = this.tabs.indexOf(nextTab);
     this.foregroundSession = next;
     this.updateBar();
+    this._saveState();
   }
 
   onSessionDisposed(session) {
     const tab = this.findBySession(session);
-    if (tab) this.removeTab(tab);
+    if (!tab) return;
+    // Remember the slot when the disposed session was the foreground: the
+    // incoming replacement (see onForegroundChanged) takes it in place.
+    if (session === this.foregroundSession) this._replacedAt = this.tabs.indexOf(tab);
+    this.removeTab(tab);
   }
 
   shutdown() {

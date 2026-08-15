@@ -64,6 +64,8 @@ All three are real Pi slash commands — they appear in command autocomplete wit
 | `/tabclose` | Close the active tab (the last tab cannot be closed). |
 | `/tabrename <name>` | Rename the active tab and persist its session name. |
 
+Pi's own built-ins keep working normally: `/new` starts a brand-new session and replaces the active tab in place (the previous conversation stays on disk — `/resume` can bring it back), and `/resume` swaps the active tab for the resumed session.
+
 ## Keyboard
 
 | Key | Action |

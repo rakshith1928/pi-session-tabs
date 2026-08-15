@@ -90,7 +90,12 @@ Entry flow:
    `needs_attention`) and tab naming: an explicit name (the initial `Main`
    tab, `/tabnew <name>`, `/tabrename`) is a user override (`tab.userRenamed`),
    while unnamed tabs adopt Pi's generated title when the session emits
-   `session_info_changed` (the same event `setSessionName` emits). The tab set
+   `session_info_changed` (the same event `setSessionName` emits). Built-in
+   session replacement (Pi's `/new`, `/resume`, fork) is reconciled via
+   `onSessionDisposed` + `onForegroundChanged`: the disposed foreground tab's
+   slot is remembered and the incoming session takes it in place with a fresh
+   non-colliding placeholder (`nextTabName`), so vanilla Pi semantics are kept.
+   The tab set
    (session file, name, active tab) is persisted per project under the Pi agent
    dir (`stateFilePath`) and fully restored on the next start (`restoreTabs` +
    `planRestore`): the previously active tab is re-activated, and Pi's fresh
