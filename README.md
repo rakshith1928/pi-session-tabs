@@ -43,7 +43,7 @@ pi install npm:pi-session-tabs
 From GitHub:
 
 ```sh
-pi install git:github.com/<you>/pi-session-tabs
+pi install git:github.com/rakshith1928/pi-session-tabs
 ```
 
 For local development:
@@ -60,7 +60,7 @@ All three are real Pi slash commands — they appear in command autocomplete wit
 
 | Command | Action |
 | --- | --- |
-| `/tabnew [name]` | Create and activate an independent session tab. |
+| `/tabnew [name]` | Create and activate an independent session tab. Optional name; unnamed tabs adopt Pi's session title. |
 | `/tabclose` | Close the active tab (the last tab cannot be closed). |
 | `/tabrename <name>` | Rename the active tab and persist its session name. |
 
@@ -77,6 +77,7 @@ A native TUI strip is rendered above Pi's normal header. Each tab is a distinct 
 - **Active tab** is highlighted with the `selectedBg` background.
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running, `⚠` needs attention.
 - Tab widths follow the session name (plus the status glyph), and long names truncate safely so the strip always fits the terminal.
+- Tabs start from the name you give them (or a `tab N` placeholder); unnamed tabs adopt the session title Pi generates, and explicit names (via `/tabnew <name>` or `/tabrename`) are kept.
 - Closing the last tab is disabled.
 
 > **No mouse, no focus mode.** Pi 0.84.1 exposes no native click or hover API for extension widgets, so tabs are keyboard-driven (`Alt+Left` / `Alt+Right` and the `/tab*` commands). Click-to-switch is a deferred future enhancement.
@@ -122,7 +123,7 @@ npm test
 pi -e .
 ```
 
-`npm test` runs the `node:test` suite (it never touches a real Pi). `pi -e .` boots an interactive Pi session with the local extension loaded, so you can exercise the tab bar, the `/tab*` commands, and `Alt+Left`/`Alt+Right` by hand. `AGENTS.md` covers the architecture, invariants, and test conventions.
+`npm test` runs the `node:test` suite (it never touches a real Pi). `pi -e .` boots an interactive Pi session with the local extension loaded, so you can exercise the tab bar, the `/tab*` commands, and `Alt+Left`/`Alt+Right` by hand. `AGENTS.md` covers the architecture, invariants, and test conventions, and `CONTRIBUTING.md` covers where things live and pull-request expectations.
 
 ## Uninstall
 

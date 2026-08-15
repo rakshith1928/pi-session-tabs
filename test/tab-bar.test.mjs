@@ -1,23 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatTabs, createTabBar, layoutTabs } from "../extensions/tab-bar.mjs";
+import { createTabBar, layoutTabs } from "../extensions/tab-bar.mjs";
 import { visibleWidth } from "@earendil-works/pi-tui";
-
-test("formatTabs renders active bracket, glyphs, separators", () => {
-  const tabs = [
-    { name: "a", state: "idle" },
-    { name: "b", state: "running" },
-    { name: "c", state: "needs_attention" },
-  ];
-  assert.equal(formatTabs(tabs, 1, 40), " ○ a │[● b]│ ⚠ c ");
-});
-
-test("formatTabs truncates to width with ellipsis", () => {
-  const tabs = [{ name: "very-long-name", state: "idle" }];
-  const out = formatTabs(tabs, 0, 10);
-  assert.equal(out.length, 10);
-  assert.ok(out.endsWith("…"));
-});
 
 test("strip lays out one component per tab", () => {
   const FakeHStack = class { constructor() { this.children = []; } addChild(c, o) { this.children.push({ c, o }); } clear() { this.children = []; } render() { return [""]; } invalidate() {} };

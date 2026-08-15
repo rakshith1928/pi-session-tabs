@@ -48,7 +48,7 @@ Entry flow:
    classes (`AgentSessionRuntime`, `AgentSession`, `InteractiveMode`,
    `SessionManager`) and TUI `Container`/`HStack`. Calls `ensurePatched(...)` in
    **Phase A** (before `new InteractiveMode`) and injects TUI classes into the
-   controller, then `checkVersion()`. Exports the default `piSessionTabs()`
+   controller, then `checkVersion()`. Exports the default `piSessionTabs(pi)`
    factory (**Phase B**) which registers `/tabnew`, `/tabclose` and
    `/tabrename` as Pi slash commands (via `registerTabCommands` in
    `commands.mjs`) so they appear in command autocomplete with descriptions and
@@ -62,7 +62,7 @@ Entry flow:
    `/tabnew`, `/tabclose`, `/tabrename` as Pi slash commands (with descriptions
    and `/tabrename` name-completions) that delegate to the controller's
    `handleTabCommand`.
-3. **`extensions/patches.mjs`** — **the integration surface.** Eight guarded
+4. **`extensions/patches.mjs`** — **the integration surface.** Eight guarded
    integration points, all pure factory functions (`makeX(orig, opts) => fn`):
    - `AgentSessionRuntime.__piSessionTabsAttachSession` — non-destructive
      session swap (`_session` + `finishSessionReplacement`, no teardown).
@@ -80,19 +80,23 @@ Entry flow:
    - `installPatches()` records every patched member (snapshot) and `restore()`
      reverses it; namespaced `__piSessionTabs*` additions are deleted, original
      Pi members reinstated.
-4. **`extensions/tab-manager.mjs`** — `TabManager` owns session registration,
+5. **`extensions/tab-manager.mjs`** — `TabManager` owns session registration,
    switching, lifecycle, per-tab drafts, and per-tab status. Handles
    `/tabnew`, `/tabclose`, `/tabrename`, and Alt+Left/Right cycling. Session
    events drive a small per-tab state machine (`idle` / `running` /
-   `needs_attention`). `closeTab(index)` closes a specific tab (delegating to
-   `closeActive()` when it is the active one) and keeps the foreground stable.
-5. **`extensions/tab-component.mjs`** — `createTabComponent({ theme, entry })`
+   `needs_attention`) and tab naming: an explicit name (the initial `Main`
+   tab, `/tabnew <name>`, `/tabrename`) is a user override (`tab.userRenamed`),
+   while unnamed tabs adopt Pi's generated title when the session emits
+   `session_info_changed` (the same event `setSessionName` emits). `closeTab(index)`
+   closes a specific tab (delegating to `closeActive()` when it is the active
+   one) and keeps the foreground stable.
+6. **`extensions/tab-component.mjs`** — `createTabComponent({ theme, entry })`
    builds one tab's `Box`: a `selectedBg` background fill for the active tab and a
    `TruncatedText` label (`glyph + " " + name`). There is no `+`/`×` control — the
    strip is informational only (Pi 0.84.1 has no `onClick` API). Interaction is
    keyboard-only — there is **no focus mode** (intentionally not implemented; Pi
    0.84.1 has no clean free key for a tab-navigation toggle).
-6. **`extensions/tab-bar.mjs`** — builds the tab strip above the header from Pi's
+7. **`extensions/tab-bar.mjs`** — builds the tab strip above the header from Pi's
    native components: an `HStack` of per-tab `Box`es (each containing a
    `TruncatedText` label = `glyph + " " + name`). `layoutTabs()` is a **pure**
    function mapping `manager.tabs` + `activeIndex` to per-tab content + flags
@@ -127,7 +131,7 @@ Entry flow:
 
 | Command / key | Action |
 | --- | --- |
-| `/tabnew [name]` | Create and activate an independent session tab. |
+| `/tabnew [name]` | Create and activate an independent session tab. Unnamed tabs adopt Pi's session title. |
 | `/tabclose` | Close the active tab (the last tab cannot be closed). |
 | `/tabrename <name>` | Rename the active tab and persist its session name. |
 | `Alt+Left` / `Alt+Right` | Switch to the previous / next tab, wrapping at either end. |
@@ -135,7 +139,7 @@ Entry flow:
 ## Development
 
 ```sh
-npm test          # runs node:test across test/*.test.mjs (54 tests, no Pi running)
+npm test          # runs node:test across test/*.test.mjs (55 tests, no Pi running)
 node --test       # equivalent
 pi -e .           # boot Pi with the local extension for manual / interactive checks
 ```
@@ -167,7 +171,7 @@ bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
 
 ## Conventions
 
-- **Pure where possible.** Patch factories, `layoutTabs`, `formatTabs`,
+- **Pure where possible.** Patch factories, `layoutTabs`,
   `parseTabCommand`, `altTabDirection`, and `hasOverlay` are pure functions —
   keep them that way so they stay trivially testable.
 - **JSDoc over TS** for the patched/prototype surfaces; document *why* a private

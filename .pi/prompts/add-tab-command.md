@@ -26,7 +26,7 @@ Steps
 
 Run
 
-npm test (node --test via jiti) must pass.
+npm test (node --test) must pass.
 
 Contributor loop
 

@@ -12,7 +12,7 @@ every Pi session.
 
 ```sh
 pi install npm:pi-session-tabs                   # from npm
-pi install git:github.com/<you>/pi-session-tabs  # from a fork
+pi install git:github.com/rakshith1928/pi-session-tabs  # from GitHub
 pi install ./pi-session-tabs                     # local clone (development)
 ```
 
@@ -25,7 +25,7 @@ descriptions and are never forwarded to the model.
 
 | Command | Description | Notes |
 | --- | --- | --- |
-| `/tabnew [name]` | Open a new session tab and activate it. | Optional name; defaults to an auto name. |
+| `/tabnew [name]` | Open a new session tab and activate it. | Optional name; unnamed tabs adopt the session title Pi generates. |
 | `/tabclose` | Close the active tab. | The last remaining tab cannot be closed. |
 | `/tabrename <name>` | Rename the active tab. | Typing suggests existing tab names. |
 
@@ -58,6 +58,11 @@ simply swaps which session Pi renders, while the others keep running in the
 background and surface status (running / needs-attention) in their glyphs. There
 is exactly one foreground and any number of concurrent background sessions — the
 OpenCode v2 model.
+
+Tab naming follows Pi's own session naming: an unnamed tab starts with a `tab N`
+placeholder and adopts the title Pi generates for the session, while explicit
+names (via `/tabnew <name>` or `/tabrename`) are kept as overrides. The initial
+foreground tab is always labeled `Main`.
 
 ## Requirements & compatibility
 
