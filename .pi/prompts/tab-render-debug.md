@@ -18,7 +18,7 @@ Checklist
 2. Wrong highlight? isActive from layoutTabs drives theme.bg("selectedBg"); confirm activate()/cycle() updates activeIndex and the bar re-renders.
 3. Overflow / truncation? HStack shrink + minSize handle it; labels use TruncatedText so a shrunk tab stays one line. Do not add width math in layoutTabs.
 4. Active highlight wrong? isActive from layoutTabs drives theme.bg("selectedBg").
-5. Keys not working? Alt+Left/Right are intercepted in tab-manager.mjs (makeAltArrowListener); /tabnew /tabclose /tabrename are registered slash commands in commands.mjs. There is no focus mode.
+5. Keys not working? Alt+Left/Right are intercepted in tab-manager.mjs (makeAltArrowListener); /tabnew /tabclose /tabrename are registered slash commands in commands.mjs. There is no focus mode. The interceptor only consumes the keys while two or more tabs exist; with a single tab they pass through to the editor.
 
 Further reading
 

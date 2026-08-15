@@ -77,6 +77,9 @@ export function makeAltArrowListener(mode, manager) {
     if (!direction) return undefined;
     clearPending();
     if (hasOverlay(mode)) return undefined;
+    // With a single tab there is nothing to cycle — don't swallow the keys,
+    // let them fall through to Pi's editor (Alt+arrow = word motion).
+    if (manager.tabs.length < 2) return undefined;
     void manager.cycle(direction);
     return { consume: true };
   };

@@ -189,7 +189,8 @@ bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
 - Shared Pi chrome (header, footer, widgets, status) is last-writer-wins between
   sessions.
 - Tabs are not restored as a group across restarts.
-- `Alt+Left` / `Alt+Right` shadow Pi editor word movement while tabs are active.
+- `Alt+Left` / `Alt+Right` shadow Pi editor word movement only while two or more
+  tabs are open; with a single tab the keys pass through to the editor.
 - Tab-name truncation is single-line via `TruncatedText` (allocated width from
   the `HStack`); width math still uses ASCII-width assumptions, not true terminal
   display width.

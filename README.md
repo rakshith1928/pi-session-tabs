@@ -96,7 +96,7 @@ See `AGENTS.md` for the architecture, invariants, and test conventions, and `doc
 
 - Shared Pi chrome (header, footer, widgets, and status) is last-writer-wins between sessions.
 - Tabs are not restored across restarts; Pi restores its normal session, but the tab set is not persisted as a group.
-- While tabs are active, `Alt+Left` and `Alt+Right` shadow Pi editor word movement.
+- `Alt+Left` / `Alt+Right` shadow Pi editor word movement only while two or more tabs are open; with a single tab the keys pass through to the editor.
 - Tab-name truncation uses ASCII-width assumptions rather than terminal display width.
 - `needs_attention` is derived only from structural session events, including an assistant message with `stopReason: "error"`; it does not classify arbitrary error text.
 - `session_start` fires once per session, on its first extension bind.

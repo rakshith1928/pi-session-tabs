@@ -185,6 +185,42 @@ test("alt arrow listener handles ESC-prefixed Alt+arrow fallback", () => {
   assert.equal(cycled, null);
 });
 
+test("alt arrow listener passes through when only one tab exists", () => {
+  const mode = stubMode(stubSession("s1"));
+  const m = new TabManager({ mode });
+  m.addTab(mode.runtimeHost.session, { name: "one", boundBefore: true });
+  let cycled = null;
+  m.cycle = async (dir) => { cycled = dir; };
+  const listener = makeAltArrowListener(mode, m);
+  assert.equal(listener("\x1b[1;5C"), undefined, "not consumed with a single tab");
+  assert.equal(cycled, null, "cycle not called");
+});
+
+test("alt arrow listener passes the ESC-prefixed fallback through with one tab", () => {
+  const mode = stubMode(stubSession("s1"));
+  const m = new TabManager({ mode });
+  m.addTab(mode.runtimeHost.session, { name: "one", boundBefore: true });
+  let cycled = null;
+  m.cycle = async (dir) => { cycled = dir; };
+  const listener = makeAltArrowListener(mode, m);
+  assert.equal(listener("\x1b"), undefined, "lone ESC passes through");
+  assert.equal(listener("\x1b[C"), undefined, "fallback arrow not consumed");
+  assert.equal(cycled, null, "cycle not called");
+});
+
+test("alt arrow listener consumes again once a second tab exists", () => {
+  const mode = stubMode(stubSession("s1"));
+  const m = new TabManager({ mode });
+  m.addTab(mode.runtimeHost.session, { name: "one", boundBefore: true });
+  let cycled = null;
+  m.cycle = async (dir) => { cycled = dir; };
+  const listener = makeAltArrowListener(mode, m);
+  m.addTab(stubSession("s2"), { name: "two", boundBefore: true });
+  const consumed = listener("\x1b[1;5C");
+  assert.equal(cycled, 1, "cycle fires once a second tab exists");
+  assert.deepEqual(consumed, { consume: true });
+});
+
 test("hasOverlay detects open overlays and custom editors", () => {
   const base = { editor: "editor", defaultEditor: "editor" };
   assert.equal(hasOverlay(base), false);
