@@ -13,13 +13,13 @@ import { makeOpenTabSession } from "../extensions/patches.mjs";
 
 // --- stubs (mirroring test/tab-manager.test.mjs conventions) ---
 
-function stubSession(id, { isStreaming = false, sessionFile } = {}) {
+function stubSession(id, { isStreaming = false, sessionFile, sessionManager } = {}) {
   const listeners = [];
   return {
     sessionId: id,
     sessionFile,
     isStreaming,
-    sessionManager: { getSessionName: () => undefined },
+    sessionManager: sessionManager ?? { getSessionName: () => undefined },
     subscribe(fn) {
       listeners.push(fn);
       return () => {
@@ -34,9 +34,11 @@ function stubSession(id, { isStreaming = false, sessionFile } = {}) {
  * Build a manager with a real tmp cwd + agentDir and (optionally) a state
  * file on disk. `saved` is [{ name, exists? }] describing the state's tabs in
  * order; `foreground` is "fresh" or an index into `saved` meaning Pi started
- * inside that saved session's file.
+ * inside that saved session's file. `fresh` (default: true) controls whether
+ * the startup session has real content; `foregroundName` is its persisted
+ * session name, if any.
  */
-function makeRestoreManager({ agentDir, saved, foreground = "fresh", activeIndex = 0 } = {}) {
+function makeRestoreManager({ agentDir, saved, foreground = "fresh", activeIndex = 0, fresh = true, foregroundName } = {}) {
   const cwd = mkdtempSync(join(tmpdir(), "pst-cwd-"));
   const statePath = stateFilePath(agentDir, cwd);
   mkdirSync(dirname(statePath), { recursive: true });
@@ -56,7 +58,13 @@ function makeRestoreManager({ agentDir, saved, foreground = "fresh", activeIndex
     fgFile = join(cwd, "fg.jsonl");
     writeFileSync(fgFile, "{}");
   }
-  const fg = stubSession("fg", { sessionFile: fgFile });
+  const fg = stubSession("fg", {
+    sessionFile: fgFile,
+    sessionManager: {
+      getSessionName: () => foregroundName,
+      getEntries: () => (fresh ? [] : [{ type: "message", id: "m1" }]),
+    },
+  });
 
   if (saved) {
     writeFileSync(
@@ -144,12 +152,12 @@ test("parseTabState clamps out-of-range activeIndex to 0", () => {
 
 const allExist = () => true;
 
-test("planRestore: all tabs background -> startup 'new', opens all, activates saved active", () => {
+test("planRestore: fresh startup, all tabs background -> startup 'new', opens all, activates saved active", () => {
   const state = {
     tabs: [{ file: "/a", name: "Main" }, { file: "/b", name: "Research" }, { file: "/c", name: "review" }],
     activeIndex: 1,
   };
-  const plan = planRestore(state, null, allExist);
+  const plan = planRestore(state, null, { exists: allExist, fresh: true });
   assert.equal(plan.matched, false);
   assert.deepEqual(plan.startup, { name: "new", userRenamed: false });
   assert.deepEqual(plan.open.map((o) => o.index), [0, 1, 2]);
@@ -158,24 +166,47 @@ test("planRestore: all tabs background -> startup 'new', opens all, activates sa
 
 test("planRestore: foreground matches saved active tab -> rename, no open of it, no switch", () => {
   const state = { tabs: [{ file: "/a", name: "Main" }, { file: "/b", name: "Research" }], activeIndex: 1 };
-  const plan = planRestore(state, "/b", allExist);
+  const plan = planRestore(state, "/b", { exists: allExist });
   assert.equal(plan.matched, true);
   assert.deepEqual(plan.startup, { name: "Research", userRenamed: true });
   assert.deepEqual(plan.open.map((o) => o.index), [0]);
   assert.equal(plan.activate, null);
 });
 
-test("planRestore: foreground matches inactive tab -> activates the saved active tab", () => {
+test("planRestore: foreground matches an inactive tab -> stays there (explicit pick wins over saved active)", () => {
   const state = { tabs: [{ file: "/a", name: "Main" }, { file: "/b", name: "Research" }], activeIndex: 0 };
-  const plan = planRestore(state, "/b", allExist);
+  const plan = planRestore(state, "/b", { exists: allExist, fresh: false });
   assert.deepEqual(plan.startup, { name: "Research", userRenamed: true });
   assert.deepEqual(plan.open.map((o) => o.index), [0]);
-  assert.equal(plan.activate, 0);
+  assert.equal(plan.activate, null, "no auto-activation away from the explicitly resumed tab");
+});
+
+test("planRestore: external existing session (pi resume <other>) -> no auto-activation, adopts its name", () => {
+  const state = { tabs: [{ file: "/a", name: "Main" }, { file: "/b", name: "Research" }], activeIndex: 0 };
+  const plan = planRestore(state, "/x", { exists: allExist, fresh: false, name: "Old Work" });
+  assert.equal(plan.matched, false);
+  assert.deepEqual(plan.startup, { name: "Old Work", userRenamed: true });
+  assert.deepEqual(plan.open.map((o) => o.index), [0, 1]);
+  assert.equal(plan.activate, null, "the session the user named stays up front");
+});
+
+test("planRestore: external existing session without a name -> 'new' placeholder, adoption enabled", () => {
+  const state = { tabs: [{ file: "/a", name: "Main" }], activeIndex: 0 };
+  const plan = planRestore(state, "/x", { exists: allExist, fresh: false });
+  assert.deepEqual(plan.startup, { name: "new", userRenamed: false });
+  assert.equal(plan.activate, null);
+});
+
+test("planRestore: fresh startup with a --name flag name keeps that name", () => {
+  const state = { tabs: [{ file: "/a", name: "Main" }, { file: "/b", name: "Research" }], activeIndex: 1 };
+  const plan = planRestore(state, null, { exists: allExist, fresh: true, name: "Flagged" });
+  assert.deepEqual(plan.startup, { name: "Flagged", userRenamed: true });
+  assert.equal(plan.activate, 1, "fresh start still resumes where you left off");
 });
 
 test("planRestore: missing files are skipped; nothing restorable keeps 'Main'", () => {
   const state = { tabs: [{ file: "/gone", name: "Gone" }], activeIndex: 0 };
-  const plan = planRestore(state, null, () => false);
+  const plan = planRestore(state, null, { exists: () => false });
   assert.equal(plan.matched, false);
   assert.deepEqual(plan.startup, { name: "Main", userRenamed: true });
   assert.deepEqual(plan.open, []);
@@ -239,6 +270,41 @@ test("restoreTabs: missing session file is skipped with a status note", async ()
   assert.deepEqual(openCalls, [savedTabs[0].file], "the missing file is not even attempted");
   assert.equal(statuses.length, 1);
   assert.match(statuses[0], /Restored 1 of 2 tabs/);
+});
+
+test("restoreTabs: external existing session (pi resume <other>) -> stays up front, adopts its name", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "pst-agent-"));
+  const { m, runtime, openCalls, savedTabs } = makeRestoreManager({
+    agentDir,
+    saved: [{ name: "Main" }, { name: "Research" }],
+    activeIndex: 0,
+    foreground: "fresh", // file-wise: not one of the saved tabs
+    fresh: false, // but the session has real content (it was resumed)
+    foregroundName: "Old Work",
+  });
+  await m.restoreTabs();
+  assert.equal(m.tabs.length, 3, "startup + both restored tabs");
+  assert.equal(m.tabs[0].name, "Old Work", "startup tab takes the resumed session's name");
+  assert.equal(m.tabs[0].userRenamed, true);
+  assert.equal(m.activeIndex, 0, "no auto-activation away from the resumed session");
+  assert.equal(runtime.session.sessionId, "fg");
+  assert.deepEqual(openCalls, [savedTabs[0].file, savedTabs[1].file]);
+});
+
+test("restoreTabs: resumed saved inactive tab -> stays on it, saved active not reactivated", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "pst-agent-"));
+  const { m, runtime, openCalls, savedTabs } = makeRestoreManager({
+    agentDir,
+    saved: [{ name: "Main" }, { name: "Research" }],
+    activeIndex: 0,
+    foreground: 1, // Pi started inside the non-active saved tab
+  });
+  await m.restoreTabs();
+  assert.equal(m.tabs.length, 2);
+  assert.equal(m.tabs[0].name, "Research");
+  assert.equal(m.activeIndex, 0, "stays on the explicitly resumed tab");
+  assert.equal(runtime.session.sessionId, "fg");
+  assert.deepEqual(openCalls, [savedTabs[0].file]);
 });
 
 // --- persistence on structural changes ---

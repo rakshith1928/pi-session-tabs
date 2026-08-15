@@ -94,8 +94,11 @@ Entry flow:
    session replacement (Pi's `/new`, `/resume`, fork) is reconciled via
    `onSessionDisposed` + `onForegroundChanged`: the disposed foreground tab's
    slot is remembered and the incoming session takes it in place with a fresh
-   non-colliding placeholder (`nextTabName`), so vanilla Pi semantics are kept.
-   The tab set
+   non-colliding placeholder (`nextTabName`); when the incoming session's file
+   is already open as another tab (e.g. `/resume` on a background tab), it
+   adopts that tab's slot instead of duplicating the file. `planRestore`
+   auto-activates the saved active tab only for a fresh startup (plain `pi`);
+   an explicit resume — matched or external — keeps its own foreground. The tab set
    (session file, name, active tab) is persisted per project under the Pi agent
    dir (`stateFilePath`) and fully restored on the next start (`restoreTabs` +
    `planRestore`): the previously active tab is re-activated, and Pi's fresh

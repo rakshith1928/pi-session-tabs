@@ -169,29 +169,41 @@ export function parseTabState(raw, cwd) {
 /**
  * Decide how to restore a validated state against Pi's startup session.
  * `foregroundFile` is the session file Pi started with (null when it has
- * none). `exists` is injectable for tests. Returns {
+ * none). `options.fresh` is true when the startup session has no real
+ * content yet (plain `pi` launch); `options.name` is the startup session's
+ * own persisted name (if any). `exists` is injectable for tests. Returns {
  *   matched:  boolean,                 // Pi started inside a saved tab's session
  *   startup:  { name, userRenamed },   // what to rename the initial tab to
  *   open:     [{ index, file, name }], // saved tabs to open in the background
  *   activate: number | null,           // state index to activate after opening
  * }
+ *
+ * Activation rule: the saved active tab is auto-activated only when Pi
+ * started fresh (plain `pi` / "resume where you left off"). Any explicit
+ * resume — matched or external — keeps its own foreground: the session the
+ * user asked for stays up front.
  */
-export function planRestore(state, foregroundFile, exists = (f) => existsSync(f)) {
+export function planRestore(state, foregroundFile, options = {}) {
+  const exists = options.exists ?? ((f) => existsSync(f));
+  const foregroundFresh = options.fresh === true;
+  const foregroundName = options.name;
   const matchedIndex = foregroundFile ? state.tabs.findIndex((t) => t.file === foregroundFile) : -1;
   const open = [];
   state.tabs.forEach((t, index) => {
     if (index !== matchedIndex && exists(t.file)) open.push({ index, file: t.file, name: t.name });
   });
+  const activate =
+    matchedIndex === -1 &&
+    foregroundFresh &&
+    open.some((o) => o.index === state.activeIndex)
+      ? state.activeIndex
+      : null;
   const startup =
     matchedIndex !== -1
       ? { name: state.tabs[matchedIndex].name ?? "Main", userRenamed: true }
-      : open.length > 0
-        ? { name: "new", userRenamed: false } // fresh Pi session; auto-title may adopt it
-        : { name: "Main", userRenamed: true }; // nothing restorable — unchanged
-  const activate =
-    matchedIndex === state.activeIndex || !open.some((o) => o.index === state.activeIndex)
-      ? null
-      : state.activeIndex;
+      : open.length > 0 || foregroundFresh
+        ? { name: foregroundName ?? "new", userRenamed: foregroundName !== undefined }
+        : { name: foregroundName ?? "Main", userRenamed: true };
   return { matched: matchedIndex !== -1, startup, open, activate };
 }
 
@@ -411,7 +423,17 @@ export class TabManager {
     }
     const state = parseTabState(raw, cwd);
     if (!state) return;
-    const plan = planRestore(state, this.runtime.session?.sessionFile);
+    const fg = this.runtime.session;
+    const fgFile = fg?.sessionFile ?? null;
+    // A startup session is "fresh" when it has no real content yet (a plain
+    // `pi` launch). A resumed session has message/compaction entries, so an
+    // explicit `pi resume <id>` is never treated as a fresh start.
+    const entries = fg?.sessionManager?.getEntries?.() ?? [];
+    const fresh = !entries.some((e) => e.type !== "session_info");
+    const plan = planRestore(state, fgFile, {
+      fresh,
+      name: fg?.sessionManager?.getSessionName?.() ?? undefined,
+    });
     const startup = this.tabs[0];
     if (startup) {
       startup.name = plan.startup.name;
@@ -536,15 +558,38 @@ export class TabManager {
     this._applyDrafts(prev, next);
     let nextTab = this.findBySession(next);
     if (!nextTab) {
-      // Unknown incoming session. Pi's built-in /new, /resume and fork first
-      // dispose the outgoing foreground (removing its tab) and then rebind to
-      // the new session: take the old tab's slot so the tab bar reflects an
-      // in-place replacement (vanilla Pi semantics) instead of an append. The
-      // placeholder name is fresh so Pi's auto-title can adopt it later.
+      // Unknown incoming session. Two cases:
+      // 1. /resume (or a CLI resume) picked a file that a background tab
+      //    already holds: adopt the incoming session into THAT tab's slot
+      //    instead of creating a second live session for the same file.
+      // 2. Pi's built-in /new / fork: the outgoing foreground was just
+      //    disposed (removing its tab) — take its remembered slot so the tab
+      //    bar reflects an in-place replacement (vanilla Pi semantics).
+      // In both cases the placeholder/name logic stays: a fresh session may
+      // adopt Pi's generated title later; a resumed one keeps its saved name.
+      const file = next.sessionFile;
+      const dupIndex = file ? this.tabs.findIndex((t) => t.session?.sessionFile === file) : -1;
       const inPlace = prev === this.foregroundSession && this._replacedAt !== undefined;
-      const index = inPlace ? Math.max(0, Math.min(this._replacedAt, this.tabs.length)) : undefined;
+      let index;
+      let name;
+      if (dupIndex !== -1) {
+        const dup = this.tabs[dupIndex];
+        this.removeTab(dup);
+        try {
+          dup.session.dispose();
+        } catch {
+          /* best effort; the file is owned by the incoming session */
+        }
+        index = Math.max(0, Math.min(dupIndex, this.tabs.length));
+        name = next.sessionManager?.getSessionName?.() || dup.name;
+      } else if (inPlace) {
+        index = Math.max(0, Math.min(this._replacedAt, this.tabs.length));
+        name = next.sessionManager?.getSessionName?.() || undefined;
+      } else {
+        index = undefined;
+        name = next.sessionManager?.getSessionName?.() || undefined;
+      }
       this._replacedAt = undefined;
-      const name = next.sessionManager?.getSessionName?.() || undefined;
       nextTab = this.addTab(next, { name, index });
     }
     this.activeIndex = this.tabs.indexOf(nextTab);

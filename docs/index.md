@@ -31,8 +31,12 @@ descriptions and are never forwarded to the model.
 
 Pi's built-ins are not intercepted. `/new` starts a brand-new session and the
 active tab is replaced in place (the old conversation stays on disk and can be
-reopened with `/resume`); `/resume` swaps the active tab for the resumed
-session, keeping its saved name.
+reopened with `/resume`). `/resume` swaps the active tab for the resumed
+session, keeping its saved name — if that session is already open as another
+tab, it switches there instead of creating a duplicate. At startup, an
+explicit `pi resume <id>` keeps the session you named in front (other saved
+tabs are restored in the background); only a plain `pi` launch re-activates
+the previously active tab.
 
 ## Keyboard
 

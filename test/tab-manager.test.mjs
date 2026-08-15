@@ -561,6 +561,53 @@ test("resume-style replacement keeps the incoming session's saved name", () => {
   assert.equal(m.tabs[0].userRenamed, true);
 });
 
+test("/resume of an already-open tab file adopts that slot without duplicating", () => {
+  const a = stubSession("s1");
+  const b = stubSession("s2");
+  b.sessionFile = "/proj/b.jsonl";
+  b.dispose = () => {
+    b.disposed = true;
+  };
+  const b2 = stubSession("s3"); // Pi's new session object for the same file
+  b2.sessionFile = "/proj/b.jsonl";
+  b2.sessionManager = { getSessionName: () => "Research" };
+  const mode = stubMode(a);
+  const m = new TabManager({ mode });
+  m.addTab(a, { name: "Main", boundBefore: true });
+  m.addTab(b, { name: "Research" });
+  // Pi's /resume picks b's file: dispose the current session, rebind to b2.
+  m.onSessionDisposed(a);
+  mode.runtimeHost.session = b2;
+  m.onForegroundChanged(a, b2);
+  assert.equal(m.tabs.length, 1, "no duplicate tab for the same session file");
+  assert.equal(m.tabs[0].session, b2, "incoming session object is adopted");
+  assert.equal(m.tabs[0].name, "Research");
+  assert.equal(m.activeIndex, 0);
+  assert.equal(b.disposed, true, "the orphaned old session object is disposed");
+});
+
+test("/resume of a background tab keeps the other tabs' positions", () => {
+  const a = stubSession("s1");
+  const b = stubSession("s2");
+  const c = stubSession("s3");
+  c.sessionFile = "/proj/c.jsonl";
+  const c2 = stubSession("s4"); // Pi's new session object for c's file
+  c2.sessionFile = "/proj/c.jsonl";
+  const mode = stubMode(a);
+  const m = new TabManager({ mode });
+  m.addTab(a, { name: "Main", boundBefore: true });
+  m.addTab(b, { name: "Beta" });
+  m.addTab(c, { name: "Gamma" });
+  m.onSessionDisposed(a);
+  mode.runtimeHost.session = c2;
+  m.onForegroundChanged(a, c2);
+  assert.equal(m.tabs.length, 2);
+  assert.equal(m.tabs[0].session, b, "the other tab keeps its slot");
+  assert.equal(m.tabs[1].session, c2, "resumed session keeps its own slot");
+  assert.equal(m.tabs[1].name, "Gamma", "keeps the tab's existing display name");
+  assert.equal(m.activeIndex, 1);
+});
+
 test("non-foreground dispose does not reserve a replacement slot", () => {
   const a = stubSession("s1");
   const bg = stubSession("s2");
