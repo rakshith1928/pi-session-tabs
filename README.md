@@ -52,7 +52,7 @@ For local development:
 pi install ./pi-session-tabs
 ```
 
-Run plain `pi` after installing the package. The tab bar appears above Pi's normal header.
+Run plain `pi` after installing the package. The tab bar appears above Pi's header once two or more tabs are open.
 
 ## Commands
 
