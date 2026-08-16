@@ -163,7 +163,7 @@ Entry flow:
 ## Development
 
 ```sh
-npm test          # runs node:test across test/*.test.mjs (101 tests, no Pi running)
+npm test          # runs node:test across test/*.test.mjs (106 tests, no Pi running)
 node --test       # equivalent
 pi -e .           # boot Pi with the local extension for manual / interactive checks
 ```
@@ -217,10 +217,13 @@ bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
 - `Alt+Left` / `Alt+Right` shadow Pi editor word movement only while two or more
   tabs are open; with a single tab the keys pass through to the editor.
 - Tab-name truncation is single-line via `TruncatedText` (allocated width from
-  the `HStack`); width math still uses ASCII-width assumptions, not true terminal
-  display width.
-- `needs_attention` is derived only from structural session events (e.g. an
-  assistant message with `stopReason: "error"`), not arbitrary error text.
+  the `HStack`). Width math is Unicode-aware: pi-tui's `visibleWidth` /
+  `truncateToWidth` use grapheme clusters + East Asian Width (verified in
+  0.84.1), so CJK/emoji names size and truncate correctly.
+- `needs_attention` is derived only from structural session events (assistant
+  `stopReason` "error" or "length", an abort on a background tab, and a failed
+  compaction via `compaction_end` `errorMessage`), not arbitrary error text.
+  Pi 0.84.1 has no tool-approval flow, so there is no approval-pending signal.
 - Auto-titling costs one small LLM completion per unnamed tab, on the
   session's current model (inputs capped at ~1 KB); there is no separate
   cheaper "title model".

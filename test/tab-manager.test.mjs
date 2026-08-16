@@ -84,6 +84,64 @@ test("state machine: running on agent_start, needs_attention on error message_en
   assert.equal(tab.state, "idle");
 });
 
+test("state machine: truncated (length) output is needs_attention", () => {
+  const s = stubSession("s1");
+  const m = new TabManager({ mode: stubMode(s) });
+  const tab = m.addTab(s, { name: "one", boundBefore: true });
+  s._emit({ type: "message_end", message: { role: "assistant", stopReason: "length" } });
+  assert.equal(tab.state, "needs_attention");
+});
+
+test("state machine: background tab abort is needs_attention (user can only abort the foreground)", () => {
+  const fg = stubSession("fg");
+  const bg = stubSession("bg");
+  const m = new TabManager({ mode: stubMode(fg) });
+  m.addTab(fg, { name: "main", boundBefore: true });
+  const tab = m.addTab(bg, { name: "bg" });
+  bg._emit({ type: "message_end", message: { role: "assistant", stopReason: "aborted" } });
+  assert.equal(tab.state, "needs_attention");
+});
+
+test("state machine: foreground tab abort is NOT needs_attention (it was the user's Escape)", () => {
+  const fg = stubSession("fg");
+  const m = new TabManager({ mode: stubMode(fg) });
+  const tab = m.addTab(fg, { name: "main", boundBefore: true });
+  fg._emit({ type: "message_end", message: { role: "assistant", stopReason: "aborted" } });
+  assert.notEqual(tab.state, "needs_attention");
+});
+
+test("state machine: failed compaction is needs_attention, aborted compaction is not", () => {
+  const s = stubSession("s1");
+  const m = new TabManager({ mode: stubMode(s) });
+  const tab = m.addTab(s, { name: "one", boundBefore: true });
+  s._emit({
+    type: "compaction_end",
+    reason: "overflow",
+    result: undefined,
+    aborted: false,
+    willRetry: false,
+    errorMessage: "Context overflow recovery failed",
+  });
+  assert.equal(tab.state, "needs_attention");
+
+  const s2 = stubSession("s2");
+  const m2 = new TabManager({ mode: stubMode(s2) });
+  const tab2 = m2.addTab(s2, { name: "two", boundBefore: true });
+  s2._emit({ type: "compaction_end", reason: "manual", result: undefined, aborted: true, willRetry: false });
+  assert.notEqual(tab2.state, "needs_attention", "user-cancelled compaction does not warn");
+  assert.equal(tab2.state, "idle");
+});
+
+test("state machine: successful compaction returns the tab to idle", () => {
+  const s = stubSession("s1");
+  const m = new TabManager({ mode: stubMode(s) });
+  const tab = m.addTab(s, { name: "one", boundBefore: true });
+  s._emit({ type: "compaction_start", reason: "auto" });
+  assert.equal(tab.state, "running");
+  s._emit({ type: "compaction_end", reason: "auto", result: {}, aborted: false, willRetry: false });
+  assert.equal(tab.state, "idle");
+});
+
 test("removeTab unsubscribes and updates activeIndex bounds", () => {
   const s1 = stubSession("s1");
   const s2 = stubSession("s2");

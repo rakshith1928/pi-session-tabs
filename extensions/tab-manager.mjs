@@ -606,10 +606,20 @@ export class TabManager {
         break;
       case "message_end": {
         const msg = event.message;
-        if (msg?.role === "assistant" && msg.stopReason === "error") {
-          tab.state = "needs_attention";
-        } else if (msg?.role === "assistant") {
-          tab.state = "running";
+        if (msg?.role === "assistant") {
+          if (msg.stopReason === "error" || msg.stopReason === "length") {
+            // "length" = output truncated at the token limit: the answer is
+            // incomplete, which Pi itself treats as a non-clean stop.
+            tab.state = "needs_attention";
+          } else if (msg.stopReason === "aborted" && !this.isForeground(tab.session.sessionId)) {
+            // Only the foreground session can be aborted by the user
+            // (Escape); a background abort is programmatic (e.g. a guarded
+            // UI context cancelling a prompt in a background session), so
+            // the silently lost work deserves the warning.
+            tab.state = "needs_attention";
+          } else {
+            tab.state = "running";
+          }
         }
         break;
       }
@@ -622,7 +632,13 @@ export class TabManager {
         tab.state = "running";
         break;
       case "compaction_end":
-        if (tab.state !== "needs_attention") tab.state = "idle";
+        // A failed compaction (errorMessage, not a user cancel) degrades the
+        // session's context — e.g. "Context overflow recovery failed".
+        if (event.errorMessage && !event.aborted) {
+          tab.state = "needs_attention";
+        } else if (tab.state !== "needs_attention") {
+          tab.state = "idle";
+        }
         break;
       case "session_info_changed":
         // Pi (or /name) changed the session name. Adopt it only for tabs we
