@@ -134,6 +134,80 @@ export function nextTabName(tabs) {
 // ---------------------------------------------------------------------------
 
 /** Per-project state file path under the Pi agent dir (never inside the user's repo). */
+/**
+ * Fallback title derived from the first user message: strip fenced code,
+ * inline code, and markdown symbols, take the first non-empty line, cut at
+ * a word boundary at 36 chars, capitalize the first character. Pure and
+ * exported for tests. Returns "" when nothing usable remains.
+ */
+export function heuristicTitle(text) {
+  if (!text) return "";
+  const s = String(text)
+    .replace(/```[\s\S]*?(?:```|$)/g, " ")
+    .replace(/`/g, "");
+  const line = s.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+  let title = line
+    .replace(/[#*_~[\]()!>]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.,;:!?…]+$/g, "");
+  if (title.length > 36) {
+    const cut = title.slice(0, 37);
+    const space = cut.lastIndexOf(" ");
+    title = space > 12 ? cut.slice(0, space) : title.slice(0, 36);
+  }
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
+/**
+ * Clean an LLM-produced title: newlines to spaces, strip quotes, collapse
+ * whitespace, trim trailing punctuation, cap at 40 chars on a word
+ * boundary. Pure and exported for tests. Returns "" when empty.
+ */
+export function sanitizeTitle(raw) {
+  if (!raw) return "";
+  let s = String(raw)
+    .replace(/[\r\n]+/g, " ")
+    .replace(/["“”‘’]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.。,;:!?…]+$/g, "");
+  if (s.length > 40) {
+    const cut = s.slice(0, 41);
+    const space = cut.lastIndexOf(" ");
+    s = space > 12 ? cut.slice(0, space) : s.slice(0, 40);
+  }
+  return s;
+}
+
+function messageText(msg) {
+  if (!msg) return "";
+  const c = msg.content;
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) {
+    return c
+      .filter((p) => p?.type === "text" && typeof p.text === "string")
+      .map((p) => p.text)
+      .join("\n");
+  }
+  return "";
+}
+
+/** First user + first assistant text out of an agent_end run's messages. */
+function extractTitleTexts(messages) {
+  if (!Array.isArray(messages)) return { userText: "", assistantText: "" };
+  let userText = "";
+  let assistantText = "";
+  for (const m of messages) {
+    if (!userText && m?.role === "user") userText = messageText(m).trim();
+    if (!assistantText && m?.role === "assistant") assistantText = messageText(m).trim();
+    if (userText && assistantText) break;
+  }
+  return { userText, assistantText };
+}
+
+const capText = (s, n) => (s.length > n ? s.slice(0, n) : s);
+
 export function stateFilePath(agentDir, cwd) {
   const hash = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
   return join(agentDir, "session-tabs", `${hash}.json`);
@@ -472,6 +546,10 @@ export class TabManager {
       // session_info_changed (e.g. Pi's auto-generated conversation title)
       // silently replace it. Tabs created with no name adopt the title later.
       userRenamed: name !== undefined,
+      // Auto-titling state (ChatGPT-style): unnamed tabs get one LLM title
+      // after their first assistant reply; `titled` makes it once-only.
+      titled: false,
+      _titleInFlight: false,
       unsubscribe: undefined,
     };
     if (boundBefore) session.__tabsFirstBind = true;
@@ -521,6 +599,11 @@ export class TabManager {
       case "agent_start":
         tab.state = "running";
         break;
+      case "agent_end":
+        // First finished run on an unnamed tab → auto-title it (fire-and-
+        // forget; guards live in _maybeTitle).
+        void this._maybeTitle(tab, event.messages);
+        break;
       case "message_end": {
         const msg = event.message;
         if (msg?.role === "assistant" && msg.stopReason === "error") {
@@ -551,6 +634,55 @@ export class TabManager {
         return;
     }
     this.updateBar();
+  }
+
+  /**
+   * Auto-title an unnamed tab after its first assistant reply: one small
+   * completion on the session's own model (same auth the session uses),
+   * heuristic fallback from the first user message when the model is
+   * unavailable or the call fails. Applied via setSessionName so the title
+   * persists and flows through the session_info_changed adoption. Silent
+   * and best-effort — never blocks or errors into the host.
+   */
+  async _maybeTitle(tab, messages) {
+    if (tab.userRenamed || tab.titled || tab._titleInFlight) return;
+    tab._titleInFlight = true;
+    try {
+      const { userText, assistantText } = extractTitleTexts(messages);
+      if (!userText) return; // image-only first message; retry next turn
+      let title = "";
+      const model = tab.session.model;
+      if (model && tab.session.modelRuntime?.complete) {
+        try {
+          const parts = [`First user message:\n"""${capText(userText, 500)}"""`];
+          if (assistantText) {
+            parts.push(`First assistant reply:\n"""${capText(assistantText, 500)}"""`);
+          }
+          const res = await tab.session.modelRuntime.complete(
+            model,
+            {
+              systemPrompt:
+                "You name AI chat sessions. Reply with ONLY a short title: 2-6 words, no quotes, no trailing punctuation, no explanations, same language as the conversation.",
+              messages: [{ role: "user", content: parts.join("\n\n") }],
+            },
+            { maxTokens: 32 },
+          );
+          title = sanitizeTitle(messageText(res));
+        } catch {
+          title = "";
+        }
+      }
+      if (!title) title = heuristicTitle(userText);
+      if (!title) return; // nothing usable; retry on a later turn
+      // Re-check: the tab may have been closed or user-renamed mid-call.
+      if (this.tabs.indexOf(tab) === -1 || tab.userRenamed) return;
+      tab.session.setSessionName?.(title);
+      tab.titled = true;
+    } catch {
+      /* best effort: the tab keeps its placeholder */
+    } finally {
+      tab._titleInFlight = false;
+    }
   }
 
   onForegroundChanged(prev, next) {

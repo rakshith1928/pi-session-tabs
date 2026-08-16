@@ -60,7 +60,7 @@ All three are real Pi slash commands — they appear in command autocomplete wit
 
 | Command | Action |
 | --- | --- |
-| `/tabnew [name]` | Create and activate an independent session tab. Optional name; unnamed tabs adopt Pi's session title. |
+| `/tabnew [name]` | Create and activate an independent session tab. Optional name; unnamed tabs are auto-titled from the first reply. |
 | `/tabclose` | Close the active tab (the last tab cannot be closed). |
 | `/tabrename <name>` | Rename the active tab and persist its session name. |
 
@@ -79,7 +79,7 @@ A native TUI strip is rendered above Pi's header **only while two or more tabs a
 - **Active tab** is highlighted with the `selectedBg` background.
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running, `⚠` needs attention.
 - Tab widths follow the session name (plus the status glyph), and long names truncate safely so the strip always fits the terminal.
-- Tabs start from the name you give them (or a `tab N` placeholder); unnamed tabs adopt the session title Pi generates, and explicit names (via `/tabnew <name>` or `/tabrename`) are kept.
+- Tabs start from the name you give them (or a `tab N` placeholder). Unnamed tabs are auto-titled ChatGPT-style: after the first assistant reply, one small LLM call on the session's current model names the conversation (a title derived from your first message is used if that call fails). Explicit names (via `/tabnew <name>` or `/tabrename`) are kept, and titles persist with the session across restarts.
 - **Across restarts** the tab set is restored per project — tabs, names, and the active tab come back; per-tab editor drafts are not persisted.
 - Closing the last tab is disabled.
 

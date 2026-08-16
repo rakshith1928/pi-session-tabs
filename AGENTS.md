@@ -89,8 +89,16 @@ Entry flow:
    events drive a small per-tab state machine (`idle` / `running` /
    `needs_attention`) and tab naming: an explicit name (the initial `Main`
    tab, `/tabnew <name>`, `/tabrename`) is a user override (`tab.userRenamed`),
-   while unnamed tabs adopt Pi's generated title when the session emits
-   `session_info_changed` (the same event `setSessionName` emits). Built-in
+   while unnamed tabs adopt whatever name the session emits via
+   `session_info_changed` (the same event `setSessionName` emits). Auto-
+   titling (ChatGPT-style): on an unnamed tab's first `agent_end`,
+   `TabManager._maybeTitle` makes one small `session.modelRuntime.complete`
+   call on the session's current model (inputs capped at 500 chars,
+   `maxTokens: 32`); the result is sanitized (`sanitizeTitle`) and applied via
+   `setSessionName` so it persists and flows through adoption. Fallback when
+   no model / the call fails / the result is empty: `heuristicTitle` (pure)
+   from the first user message. Once-only per tab (`titled` flag),
+   fire-and-forget, silent. Built-in
    session replacement (Pi's `/new`, `/resume`, fork) is reconciled via
    `onSessionDisposed` + `onForegroundChanged`: the disposed foreground tab's
    slot is remembered and the incoming session takes it in place with a fresh
@@ -147,7 +155,7 @@ Entry flow:
 
 | Command / key | Action |
 | --- | --- |
-| `/tabnew [name]` | Create and activate an independent session tab. Unnamed tabs adopt Pi's session title. |
+| `/tabnew [name]` | Create and activate an independent session tab. Unnamed tabs are auto-titled from the first reply. |
 | `/tabclose` | Close the active tab (the last tab cannot be closed). |
 | `/tabrename <name>` | Rename the active tab and persist its session name. |
 | `Alt+Left` / `Alt+Right` | Switch to the previous / next tab, wrapping at either end. |
@@ -155,7 +163,7 @@ Entry flow:
 ## Development
 
 ```sh
-npm test          # runs node:test across test/*.test.mjs (55 tests, no Pi running)
+npm test          # runs node:test across test/*.test.mjs (101 tests, no Pi running)
 node --test       # equivalent
 pi -e .           # boot Pi with the local extension for manual / interactive checks
 ```
@@ -213,4 +221,7 @@ bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
   display width.
 - `needs_attention` is derived only from structural session events (e.g. an
   assistant message with `stopReason: "error"`), not arbitrary error text.
+- Auto-titling costs one small LLM completion per unnamed tab, on the
+  session's current model (inputs capped at ~1 KB); there is no separate
+  cheaper "title model".
 - `session_start` fires once per session, on its first extension bind.

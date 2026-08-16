@@ -25,7 +25,7 @@ descriptions and are never forwarded to the model.
 
 | Command | Description | Notes |
 | --- | --- | --- |
-| `/tabnew [name]` | Open a new session tab and activate it. | Optional name; unnamed tabs adopt the session title Pi generates. |
+| `/tabnew [name]` | Open a new session tab and activate it. | Optional name; unnamed tabs are auto-titled from the first reply. |
 | `/tabclose` | Close the active tab. | The last remaining tab cannot be closed. |
 | `/tabrename <name>` | Rename the active tab. | Typing suggests existing tab names. |
 
@@ -69,10 +69,13 @@ background and surface status (running / needs-attention) in their glyphs. There
 is exactly one foreground and any number of concurrent background sessions — the
 OpenCode v2 model.
 
-Tab naming follows Pi's own session naming: an unnamed tab starts with a `tab N`
-placeholder and adopts the title Pi generates for the session, while explicit
-names (via `/tabnew <name>` or `/tabrename`) are kept as overrides. The initial
-foreground tab is always labeled `Main`.
+Tab naming: a tab you give a name keeps it as an override. An unnamed tab
+starts with a `tab N` placeholder and, after its first assistant reply,
+pi-session-tabs names the session ChatGPT-style — one small LLM call on the
+session's current model produces a short title (if that call fails, a title
+derived from your first message is used instead). The title is persisted with
+the session, so it also shows in Pi's terminal title and session selector and
+survives restarts. The initial foreground tab is always labeled `Main`.
 
 Across restarts the tab set is restored per project: tabs, names, and the active
 tab come back (Pi re-opens each tab's session file), and the tab you were on is
