@@ -74,11 +74,16 @@ Pi's own built-ins keep working normally: `/new` starts a brand-new session and 
 
 ## The tab bar
 
-A native TUI strip is rendered above Pi's header **only while two or more tabs are open** — with a single tab Pi looks exactly as normal (no strip). Each tab is a distinct rectangular region:
+A native TUI strip is rendered above Pi's header **only while two or more tabs are open** — with a single tab Pi looks exactly as normal (no strip). Tabs are styled after OpenCode v2's titlebar — the active tab is a rounded, filled pill, the others are quiet:
 
-- **Active tab** is highlighted with the `selectedBg` background.
+```
+◖ ● Main ◗   ○ Research   ⚠ deploy
+```
+
+- **Active tab** is a `selectedBg`-filled pill with rounded caps (`◖…◗`) and an accent, bold name.
+- **Inactive tabs** are muted text with no fill.
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running, `⚠` needs attention.
-- Tab widths follow the session name (plus the status glyph), and long names truncate safely so the strip always fits the terminal.
+- Tab widths follow the session name (plus the status glyph), and long names truncate safely — only the name ever truncates, the caps and glyph always survive — so the strip always fits the terminal.
 - Tabs start from the name you give them (or a `tab N` placeholder). Unnamed tabs are auto-titled ChatGPT-style: after the first assistant reply, one small LLM call on the session's current model names the conversation (a title derived from your first message is used if that call fails). Explicit names (via `/tabnew <name>` or `/tabrename`) are kept, and titles persist with the session across restarts.
 - **Across restarts** the tab set is restored per project — tabs, names, and the active tab come back; per-tab editor drafts are not persisted.
 - Closing the last tab is disabled.

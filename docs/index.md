@@ -47,14 +47,22 @@ the previously active tab.
 ## The tab bar
 
 A native TUI strip is rendered above Pi's header **only while two or more tabs
-are open** — with a single tab Pi looks exactly as normal (no strip). Each tab is a
-distinct rectangular region:
+are open** — with a single tab Pi looks exactly as normal (no strip). Tabs are
+styled after OpenCode v2's titlebar — the active tab is a rounded, filled pill,
+the others are quiet:
 
-- **Active tab** is highlighted with the `selectedBg` background.
+```
+◖ ● Main ◗   ○ Research   ⚠ deploy
+```
+
+- **Active tab** is a `selectedBg`-filled pill with rounded caps (`◖…◗`) and an
+  accent, bold name.
+- **Inactive tabs** are muted text with no fill.
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running,
   `⚠` needs attention.
 - Tab widths follow the session name (plus the status glyph), and long names
-  truncate safely so the strip always fits the terminal.
+  truncate safely — only the name ever truncates, the caps and glyph always
+  survive — so the strip always fits the terminal.
 - Closing the last tab is disabled.
 
 > **No mouse, no focus mode.** Pi 0.84.1 exposes no native click or hover API for

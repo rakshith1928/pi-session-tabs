@@ -113,27 +113,30 @@ Entry flow:
    startup session becomes a `new` tab; drafts are not persisted. `closeTab(index)`
    closes a specific tab (delegating to `closeActive()` when it is the active
    one) and keeps the foreground stable.
-6. **`extensions/tab-component.mjs`** — `createTabComponent({ theme, entry })`
-   builds one tab's `Box`: a `selectedBg` background fill for the active tab and a
-   `TruncatedText` label (`glyph + " " + name`). There is no `+`/`×` control — the
-   strip is informational only (Pi 0.84.1 has no `onClick` API). Interaction is
-   keyboard-only — there is **no focus mode** (intentionally not implemented; Pi
-   0.84.1 has no clean free key for a tab-navigation toggle).
+6. **`extensions/tab-component.mjs`** — one tab as an OpenCode v2-style **pill**
+   via a render-only `TabPill` component (no `onClick` exists in Pi 0.84.1, so
+   the strip stays informational; interaction is keyboard-only — **no focus
+   mode**, intentionally not implemented). Core is the **pure**
+   `renderTabPill(theme, entry, width)`: the active tab renders `◖ glyph name ◗`
+   with a `selectedBg` fill that ends exactly at the right cap and an accent +
+   bold name; inactive tabs render `glyph name` in muted with no caps and no
+   fill. Only the name ever truncates (`truncateToWidth`, Unicode-aware),
+   degrading to the bare status glyph at extreme shrink. `tabLabelWidth(entry)`
+   is the pure full-label width used as the HStack basis. There is no `+`/`×`
+   control — creation/closing/rename go through the `/tab*` commands and
+   `Alt+Left`/`Alt+Right` cycle.
 7. **`extensions/tab-bar.mjs`** — builds the tab strip above the header from Pi's
    native components (mounted only while two or more tabs exist — a single-tab
-   session looks like normal Pi): an `HStack` of per-tab `Box`es (each containing a
-   `TruncatedText` label = `glyph + " " + name`). `layoutTabs()` is a **pure**
-   function mapping `manager.tabs` + `activeIndex` to per-tab content + flags
-   (glyph, color, active); `createTabBar()` assembles the `HStack`, owns width
-   allocation via an explicit per-tab `basis = visibleWidth(glyph + " " + name) + 2`
-   with `grow:0` / `shrink:1` / `minSize:3` (leftover terminal width stays after
-   the strip; the longest tab truncates first when tight), and re-renders on
-   every update. The active tab is filled with the `selectedBg` background;
-   inactive tabs are subdued; each tab shows a status glyph (`○` idle / `●` running
-   / `⚠` needs attention). There is no `+`/`×` control — the strip is
-   informational only; creation/closing/rename go through the `/tabnew`
-   `/tabclose` `/tabrename` commands and `Alt+Left`/`Alt+Right` cycle. Mouse
-   clicks are deferred.
+   session looks like normal Pi): an `HStack` with `gap: 1` of per-tab pills.
+   `layoutTabs()` is a **pure** function mapping `manager.tabs` + `activeIndex`
+   to per-tab content + flags (glyph, color, active); `createTabBar()` assembles
+   the `HStack`, owns width allocation via an explicit per-tab
+   `basis = tabLabelWidth(entry)` (full untruncated pill label width) with
+   `grow:0` / `shrink:1` / `minSize:3` (leftover terminal width stays after the
+   strip; the longest tab truncates first when tight), and re-renders on every
+   update. Each tab shows a status glyph (`○` idle / `●` running / `⚠` needs
+   attention); the active tab is the filled pill. There is no `+`/`×` control —
+   the strip is informational only. Mouse clicks are deferred.
 
 ### Key invariants (preserve these or you will break the host)
 
@@ -163,7 +166,7 @@ Entry flow:
 ## Development
 
 ```sh
-npm test          # runs node:test across test/*.test.mjs (106 tests, no Pi running)
+npm test          # runs node:test across test/*.test.mjs (112 tests, no Pi running)
 node --test       # equivalent
 pi -e .           # boot Pi with the local extension for manual / interactive checks
 ```
@@ -195,9 +198,9 @@ bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
 
 ## Conventions
 
-- **Pure where possible.** Patch factories, `layoutTabs`,
-  `parseTabCommand`, `altTabDirection`, and `hasOverlay` are pure functions —
-  keep them that way so they stay trivially testable.
+- **Pure where possible.** Patch factories, `layoutTabs`, `renderTabPill`,
+  `tabLabelWidth`, `parseTabCommand`, `altTabDirection`, and `hasOverlay` are pure
+  functions — keep them that way so they stay trivially testable.
 - **JSDoc over TS** for the patched/prototype surfaces; document *why* a private
   Pi member is used in a comment (the code already does this — keep it up to
   date when Pi internals change).
@@ -216,10 +219,11 @@ bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
   files, names, active tab — is restored; see `restoreTabs`).
 - `Alt+Left` / `Alt+Right` shadow Pi editor word movement only while two or more
   tabs are open; with a single tab the keys pass through to the editor.
-- Tab-name truncation is single-line via `TruncatedText` (allocated width from
-  the `HStack`). Width math is Unicode-aware: pi-tui's `visibleWidth` /
-  `truncateToWidth` use grapheme clusters + East Asian Width (verified in
-  0.84.1), so CJK/emoji names size and truncate correctly.
+- Tab-name truncation is single-line: `renderTabPill` truncates only the name to
+  the `HStack`-allocated width (caps + status glyph always survive). Width math
+  is Unicode-aware: pi-tui's `visibleWidth` / `truncateToWidth` use grapheme
+  clusters + East Asian Width (verified in 0.84.1), so CJK/emoji names size and
+  truncate correctly.
 - `needs_attention` is derived only from structural session events (assistant
   `stopReason` "error" or "length", an abort on a background tab, and a failed
   compaction via `compaction_end` `errorMessage`), not arbitrary error text.
