@@ -26,6 +26,7 @@ descriptions and are never forwarded to the model.
 | Command | Description | Notes |
 | --- | --- | --- |
 | `/tabnew [name]` | Open a new session tab and activate it. | Optional name; unnamed tabs are auto-titled from the first reply. |
+| `/tabfork [name]` | Fork the current session into a new tab and activate it. | Full history is copied; optional name, otherwise auto-titled from the next reply. |
 | `/tabclose` | Close the active tab. | The last remaining tab cannot be closed. |
 | `/tabrename <name>` | Rename the active tab. | Typing suggests existing tab names. |
 

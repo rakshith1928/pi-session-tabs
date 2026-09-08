@@ -61,6 +61,7 @@ All three are real Pi slash commands — they appear in command autocomplete wit
 | Command | Action |
 | --- | --- |
 | `/tabnew [name]` | Create and activate an independent session tab. Optional name; unnamed tabs are auto-titled from the first reply. |
+| `/tabfork [name]` | Fork the current session — full history copied — into a new tab and activate it. Optional name; unnamed forks are auto-titled from the next reply. |
 | `/tabclose` | Close the active tab (the last tab cannot be closed). |
 | `/tabrename <name>` | Rename the active tab and persist its session name. |
 

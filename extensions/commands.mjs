@@ -17,6 +17,10 @@ export const TAB_COMMANDS = [
     description: "Open a new session tab — give it a name or leave it blank.",
   },
   {
+    name: "tabfork",
+    description: "Fork the current session into a new tab with its history.",
+  },
+  {
     name: "tabclose",
     description: "Close the tab you're currently on.",
   },

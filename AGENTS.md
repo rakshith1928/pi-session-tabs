@@ -49,7 +49,7 @@ Entry flow:
    `SessionManager`) and TUI `Container`/`HStack`. Calls `ensurePatched(...)` in
    **Phase A** (before `new InteractiveMode`) and injects TUI classes into the
    controller, then `checkVersion()`. Exports the default `piSessionTabs(pi)`
-   factory (**Phase B**) which registers `/tabnew`, `/tabclose` and
+   factory (**Phase B**) which registers `/tabnew`, `/tabfork`, `/tabclose` and
    `/tabrename` as Pi slash commands (via `registerTabCommands` in
    `commands.mjs`) so they appear in command autocomplete with descriptions and
    dispatch through Pi's normal command path.
@@ -59,9 +59,9 @@ Entry flow:
    `TabManager`) persist, so patching happens **exactly once per process**.
    `makeHooks()` turns lifecycle events into manager calls.
 3. **`extensions/commands.mjs`** — `registerTabCommands(pi)` registers
-   `/tabnew`, `/tabclose`, `/tabrename` as Pi slash commands (with descriptions
-   and `/tabrename` name-completions) that delegate to the controller's
-   `handleTabCommand`.
+   `/tabnew`, `/tabfork`, `/tabclose`, `/tabrename` as Pi slash commands (with
+   descriptions and `/tabrename` name-completions) that delegate to the
+   controller's `handleTabCommand`.
 4. **`extensions/patches.mjs`** — **the integration surface.** Nine guarded
    integration points, all pure factory functions (`makeX(orig, opts) => fn`):
    - `AgentSessionRuntime.__piSessionTabsAttachSession` — non-destructive
@@ -85,12 +85,18 @@ Entry flow:
      Pi members reinstated.
 5. **`extensions/tab-manager.mjs`** — `TabManager` owns session registration,
    switching, lifecycle, per-tab drafts, and per-tab status. Handles
-   `/tabnew`, `/tabclose`, `/tabrename`, and Alt+Left/Right cycling. Session
+   `/tabnew`, `/tabfork`, `/tabclose`, `/tabrename`, and Alt+Left/Right cycling. Session
    events drive a small per-tab state machine (`idle` / `running` /
    `needs_attention`) and tab naming: an explicit name (the initial `Main`
    tab, `/tabnew <name>`, `/tabrename`) is a user override (`tab.userRenamed`),
    while unnamed tabs adopt whatever name the session emits via
-   `session_info_changed` (the same event `setSessionName` emits). Auto-
+   `session_info_changed` (the same event `setSessionName` emits). `/tabfork`
+   (`forkActive`) copies the foreground session's history into a fresh file via
+   the host's `SessionManager.forkFrom` (reached through the live instance's
+   constructor, so no Pi import) and opens it through the restore primitive;
+   the copied source name in the new file is deliberately not adopted — an
+   explicit `/tabfork <name>` is an override, otherwise the fork keeps a `tab N`
+   placeholder and auto-titles on its next reply. Auto-
    titling (ChatGPT-style): on an unnamed tab's first `agent_end`,
    `TabManager._maybeTitle` makes one small `session.modelRuntime.complete`
    call on the session's current model (inputs capped at 500 chars,
@@ -159,6 +165,7 @@ Entry flow:
 | Command / key | Action |
 | --- | --- |
 | `/tabnew [name]` | Create and activate an independent session tab. Unnamed tabs are auto-titled from the first reply. |
+| `/tabfork [name]` | Fork the current session (full history copied) into a new tab and activate it. Unnamed forks are auto-titled from the next reply. |
 | `/tabclose` | Close the active tab (the last tab cannot be closed). |
 | `/tabrename <name>` | Rename the active tab and persist its session name. |
 | `Alt+Left` / `Alt+Right` | Switch to the previous / next tab, wrapping at either end. |
@@ -166,7 +173,7 @@ Entry flow:
 ## Development
 
 ```sh
-npm test          # runs node:test across test/*.test.mjs (112 tests, no Pi running)
+npm test          # runs node:test across test/*.test.mjs (119 tests, no Pi running)
 node --test       # equivalent
 pi -e .           # boot Pi with the local extension for manual / interactive checks
 ```

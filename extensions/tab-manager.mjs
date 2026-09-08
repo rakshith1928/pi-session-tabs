@@ -89,6 +89,7 @@ export function makeAltArrowListener(mode, manager) {
 export async function handleTabCommand(manager, cmd) {
   try {
     if (cmd.command === "tabnew") await manager.createTab(cmd.name);
+    else if (cmd.command === "tabfork") await manager.forkActive(cmd.name);
     else if (cmd.command === "tabclose") await manager.closeActive();
     else if (cmd.command === "tabrename") manager.renameActive(cmd.name);
   } catch (err) {
@@ -103,6 +104,10 @@ export function parseTabCommand(text) {
   if (t === "/tabnew" || t.startsWith("/tabnew ")) {
     const name = t.slice("/tabnew".length).trim();
     return { command: "tabnew", ...(name ? { name } : {}) };
+  }
+  if (t === "/tabfork" || t.startsWith("/tabfork ")) {
+    const name = t.slice("/tabfork".length).trim();
+    return { command: "tabfork", ...(name ? { name } : {}) };
   }
   if (t === "/tabclose") return { command: "tabclose" };
   if (t === "/tabrename" || t.startsWith("/tabrename ")) {
@@ -347,6 +352,51 @@ export class TabManager {
 
   async createTab(name) {
     const result = await this.runtime.__piSessionTabsCreateTabSession();
+    const session = result.session;
+    const tab = this.addTab(session, { name });
+    if (name) {
+      try {
+        session.setSessionName(name);
+      } catch {
+        /* name is cosmetic; ignore */
+      }
+    }
+    await this.activate(this.tabs.indexOf(tab));
+    this._saveState();
+  }
+
+  /**
+   * Fork the foreground session into a new tab: the full history is copied
+   * into a fresh session file (parentSession pointer included) via the
+   * host's SessionManager.forkFrom, then opened through the same primitive
+   * restore uses. The forked tab mirrors /tabnew (appended + activated).
+   *
+   * Naming: forkFrom copies all non-header entries, so the new file carries
+   * the source's persisted name — we deliberately do NOT adopt it (no
+   * open-time getSessionName read, unlike restore). An explicit name is an
+   * override; otherwise the tab keeps a `tab N` placeholder (userRenamed =
+   * false) and auto-titles on its first reply via _maybeTitle.
+   *
+   * The SessionManager class is reached via the live instance's constructor
+   * so no Pi import is needed (always the host's own class, like the
+   * injected class the __piSessionTabs* patches use).
+   */
+  async forkActive(name) {
+    const fg = this.runtime.session;
+    const sourceFile = fg?.sessionFile ?? null;
+    if (!fg || !sourceFile) {
+      throw new Error("Cannot fork: the active tab has no session file yet");
+    }
+    const forkFrom = fg.sessionManager?.constructor?.forkFrom;
+    if (typeof forkFrom !== "function") {
+      throw new Error("Cannot fork: SessionManager.forkFrom is unavailable");
+    }
+    const forkedManager = await forkFrom(sourceFile, this.runtime.cwd, undefined);
+    const newFile = forkedManager?.sessionFile ?? null;
+    if (!newFile) {
+      throw new Error("Cannot fork: the forked session has no file");
+    }
+    const result = await this.runtime.__piSessionTabsOpenTabSession(newFile);
     const session = result.session;
     const tab = this.addTab(session, { name });
     if (name) {

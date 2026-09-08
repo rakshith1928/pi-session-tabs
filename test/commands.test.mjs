@@ -14,16 +14,18 @@ function mockPi() {
   return { pi: { registerCommand: (name, opts) => { registered[name] = opts; } }, registered };
 }
 
-test("registerTabCommands registers the three tab commands with descriptions", () => {
+test("registerTabCommands registers the four tab commands with descriptions", () => {
   const { pi, registered } = mockPi();
   registerTabCommands(pi);
-  assert.deepEqual(Object.keys(registered).sort(), ["tabclose", "tabnew", "tabrename"]);
+  assert.deepEqual(Object.keys(registered).sort(), ["tabclose", "tabfork", "tabnew", "tabrename"]);
   assert.equal(registered.tabnew.description, "Open a new session tab — give it a name or leave it blank.");
+  assert.equal(registered.tabfork.description, "Fork the current session into a new tab with its history.");
   assert.equal(registered.tabclose.description, "Close the tab you're currently on.");
   assert.equal(registered.tabrename.description, "Rename the tab you're currently on.");
   // Only /tabrename offers argument completions (existing tab names).
   assert.equal(typeof registered.tabrename.getArgumentCompletions, "function");
   assert.equal(registered.tabnew.getArgumentCompletions, undefined);
+  assert.equal(registered.tabfork.getArgumentCompletions, undefined);
   assert.equal(registered.tabclose.getArgumentCompletions, undefined);
 });
 
@@ -32,6 +34,7 @@ test("tab command handlers delegate to the controller's handleTabCommand", async
   const calls = [];
   c.manager = {
     createTab: (n) => calls.push(["createTab", n]),
+    forkActive: (n) => calls.push(["forkActive", n]),
     closeActive: () => calls.push(["closeActive"]),
     renameActive: (n) => calls.push(["renameActive", n]),
     tabs: [{ name: "a" }, { name: "b" }],
@@ -40,10 +43,12 @@ test("tab command handlers delegate to the controller's handleTabCommand", async
   registerTabCommands(pi);
   const ctx = fakeCtx();
   await registered.tabnew.handler("my new", ctx);
+  await registered.tabfork.handler("spike", ctx);
   await registered.tabclose.handler("", ctx);
   await registered.tabrename.handler("renamed", ctx);
   assert.deepEqual(calls, [
     ["createTab", "my new"],
+    ["forkActive", "spike"],
     ["closeActive"],
     ["renameActive", "renamed"],
   ]);

@@ -170,7 +170,7 @@ test("removeTab preserves the active tab when removing a preceding tab", () => {
   assert.equal(m.tabs[m.activeIndex], tabC);
 });
 
-test("parseTabCommand recognizes only the three tab commands", () => {
+test("parseTabCommand recognizes only the four tab commands", () => {
   assert.deepEqual(parseTabCommand("/tabnew"), { command: "tabnew" });
   assert.deepEqual(parseTabCommand("/tabnew my session"), { command: "tabnew", name: "my session" });
   assert.deepEqual(parseTabCommand("  /tabclose  "), { command: "tabclose" });
