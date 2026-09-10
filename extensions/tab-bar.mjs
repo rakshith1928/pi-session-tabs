@@ -12,7 +12,6 @@ const GLYPH_COLOR = { idle: "muted", running: "text", needs_attention: "warning"
 export function layoutTabs(tabs, activeIndex) {
   const entries = tabs.map((tab, i) => ({
     key: `tab-${i}`,
-    name: tab.name,
     displayName: tab.name,
     glyph: GLYPH[tab.state] ?? GLYPH.idle,
     glyphColor: GLYPH_COLOR[tab.state] ?? GLYPH_COLOR.idle,

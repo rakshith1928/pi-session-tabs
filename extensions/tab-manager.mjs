@@ -219,9 +219,11 @@ export function stateFilePath(agentDir, cwd) {
 }
 
 /**
- * Validate raw state-file JSON. Returns { tabs: [{file, name?}], activeIndex }
+ * Validate raw state-file JSON. Returns { tabs: [{file, name?, draft}],
+ * activeIndex }
  * or null when the payload is unusable (bad JSON, wrong version, cwd mismatch,
- * no valid entries). `name` is undefined for entries saved without one.
+ * no valid entries). `name` is undefined for entries saved without one;
+ * `draft` defaults to "" for pre-draft state files.
  */
 export function parseTabState(raw, cwd) {
   let data;
@@ -235,7 +237,7 @@ export function parseTabState(raw, cwd) {
   const tabs = [];
   for (const t of data.tabs) {
     if (!t || typeof t.file !== "string" || t.file === "") continue;
-    tabs.push({ file: t.file, name: typeof t.name === "string" && t.name !== "" ? t.name : undefined });
+    tabs.push({ file: t.file, name: typeof t.name === "string" && t.name !== "" ? t.name : undefined, draft: typeof t.draft === "string" ? t.draft : "" });
   }
   if (tabs.length === 0) return null;
   const activeIndex =
@@ -253,7 +255,7 @@ export function parseTabState(raw, cwd) {
  * own persisted name (if any). `exists` is injectable for tests. Returns {
  *   matched:  boolean,                 // Pi started inside a saved tab's session
  *   startup:  { name, userRenamed },   // what to rename the initial tab to
- *   open:     [{ index, file, name }], // saved tabs to open in the background
+ *   open:     [{ index, file, name, draft }], // saved tabs to open in background
  *   activate: number | null,           // state index to activate after opening
  * }
  *
@@ -269,7 +271,7 @@ export function planRestore(state, foregroundFile, options = {}) {
   const matchedIndex = foregroundFile ? state.tabs.findIndex((t) => t.file === foregroundFile) : -1;
   const open = [];
   state.tabs.forEach((t, index) => {
-    if (index !== matchedIndex && exists(t.file)) open.push({ index, file: t.file, name: t.name });
+    if (index !== matchedIndex && exists(t.file)) open.push({ index, file: t.file, name: t.name, draft: t.draft ?? "" });
   });
   const activate =
     matchedIndex === -1 &&
@@ -387,6 +389,11 @@ export class TabManager {
     const sourceFile = fg?.sessionFile ?? null;
     if (!fg || !sourceFile) {
       throw new Error("Cannot fork: the active tab has no session file yet");
+    }
+    if (fg.isStreaming) {
+      // forkFrom copies the persisted file; an in-flight reply is not in it
+      // yet, so forking mid-stream would silently drop the tail.
+      throw new Error("Cannot fork while the session is still replying — wait for it to finish and try again");
     }
     const forkFrom = fg.sessionManager?.constructor?.forkFrom;
     if (typeof forkFrom !== "function") {
@@ -519,7 +526,7 @@ export class TabManager {
           version: 1,
           cwd,
           activeIndex: this.activeIndex,
-          tabs: this.tabs.map((t) => ({ file: t.session?.sessionFile ?? null, name: t.name })),
+          tabs: this.tabs.map((t) => ({ file: t.session?.sessionFile ?? null, name: t.name, draft: t.draft ?? "" })),
         }),
       );
     } catch {
@@ -569,7 +576,7 @@ export class TabManager {
       try {
         const result = await this.runtime.__piSessionTabsOpenTabSession(entry.file);
         const name = entry.name ?? result.session.sessionManager?.getSessionName?.() ?? undefined;
-        opened.set(entry.index, this.addTab(result.session, { name }));
+        opened.set(entry.index, this.addTab(result.session, { name, draft: entry.draft ?? "" }));
       } catch {
         /* skip unreadable session file */
       }

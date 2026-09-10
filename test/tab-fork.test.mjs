@@ -153,6 +153,23 @@ test("forkActive without a session file reports instead of forking", async () =>
   assert.match(status.join("\n"), /no session file/);
 });
 
+test("forkActive while the foreground session is streaming refuses instead of forking", async () => {
+  const forkCalls = [];
+  const src = stubSession("s0", { sessionFile: "/sessions/main.jsonl" });
+  src.isStreaming = true;
+  const { m, mode, status } = makeManager(src, {
+    forkFrom: (...a) => {
+      forkCalls.push(a);
+      return { sessionFile: "/sessions/fork1.jsonl" };
+    },
+  });
+  await handleTabCommand(m, { command: "tabfork" });
+  assert.equal(m.tabs.length, 1, "no tab added");
+  assert.equal(forkCalls.length, 0, "forkFrom never called");
+  assert.equal(mode.runtimeHost.openedFile, undefined, "nothing opened");
+  assert.match(status.join("\n"), /still replying/);
+});
+
 test("forkActive persists the new tab set", async () => {
   const dir = mkdtempSync(join(tmpdir(), "tabfork-"));
   const src = stubSession("s0", { sessionFile: "/sessions/main.jsonl" });

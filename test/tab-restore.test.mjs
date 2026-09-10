@@ -48,7 +48,8 @@ function makeRestoreManager({ agentDir, saved, foreground = "fresh", activeIndex
     const file = join(cwd, `s${i}.jsonl`);
     if (t.exists !== false) writeFileSync(file, "{}");
     openFiles[file] = stubSession("s" + i, { sessionFile: file });
-    return { file, name: t.name };
+    // `draft` is optional so tests can simulate pre-draft state files.
+    return { file, name: t.name, ...(t.draft !== undefined ? { draft: t.draft } : {}) };
   });
 
   let fgFile;
@@ -129,7 +130,7 @@ test("parseTabState accepts a valid payload", () => {
     }),
     "/p",
   );
-  assert.deepEqual(out, { tabs: [{ file: "/a", name: "A" }, { file: "/b", name: undefined }], activeIndex: 1 });
+  assert.deepEqual(out, { tabs: [{ file: "/a", name: "A", draft: "" }, { file: "/b", name: undefined, draft: "" }], activeIndex: 1 });
 });
 
 test("parseTabState rejects bad json, wrong version, cwd mismatch, and no valid entries", () => {
@@ -213,7 +214,43 @@ test("planRestore: missing files are skipped; nothing restorable keeps 'Main'", 
   assert.equal(plan.activate, null);
 });
 
-// --- restoreTabs integration (fake runtime; no real Pi) ---
+test("parseTabState keeps per-tab drafts and defaults missing drafts to empty", () => {
+  const out = parseTabState(
+    JSON.stringify({
+      version: 1,
+      cwd: "/p",
+      activeIndex: 1,
+      tabs: [
+        { file: "/a", name: "A", draft: "unsent text" },
+        { file: "/b", name: "B" },
+      ],
+    }),
+    "/p",
+  );
+  assert.deepEqual(out.tabs, [
+    { file: "/a", name: "A", draft: "unsent text" },
+    { file: "/b", name: "B", draft: "" },
+  ]);
+});
+
+test("restoreTabs restores per-tab drafts and round-trips them through _saveState", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "pst-agent-"));
+  const { m, savedTabs, statePath } = makeRestoreManager({
+    agentDir,
+    // The matched startup tab keeps its live editor text, not the saved
+    // draft — only background tabs restore theirs.
+    saved: [{ name: "Home", draft: "stale startup draft" }, { name: "Research", draft: "half-typed thought" }],
+    foreground: 0,
+  });
+  await m.restoreTabs();
+  assert.equal(m.tabs[0].draft, "", "startup tab draft stays live (saved draft ignored)");
+  assert.equal(m.tabs[1].draft, "half-typed thought", "saved draft restored onto the background tab");
+  // Round trip: a draft typed after restore is persisted.
+  m.tabs[1].draft = "edited draft";
+  m._saveState();
+  const saved = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.equal(saved.tabs[1].draft, "edited draft");
+});
 
 test("restoreTabs: no state file -> single Main tab, nothing opened", async () => {
   const agentDir = mkdtempSync(join(tmpdir(), "pst-agent-"));

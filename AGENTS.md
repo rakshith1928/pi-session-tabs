@@ -116,7 +116,8 @@ Entry flow:
    (session file, name, active tab) is persisted per project under the Pi agent
    dir (`stateFilePath`) and fully restored on the next start (`restoreTabs` +
    `planRestore`): the previously active tab is re-activated, and Pi's fresh
-   startup session becomes a `new` tab; drafts are not persisted. `closeTab(index)`
+   startup session becomes a `new` tab; per-tab editor drafts ride along in
+   the state file (the live startup tab keeps its current editor text). `closeTab(index)`
    closes a specific tab (delegating to `closeActive()` when it is the active
    one) and keeps the foreground stable.
 6. **`extensions/tab-component.mjs`** — one tab as an OpenCode v2-style **pill**
@@ -173,7 +174,7 @@ Entry flow:
 ## Development
 
 ```sh
-npm test          # runs node:test across test/*.test.mjs (119 tests, no Pi running)
+npm test          # runs node:test across test/*.test.mjs (122 tests, no Pi running)
 node --test       # equivalent
 pi -e .           # boot Pi with the local extension for manual / interactive checks
 ```
@@ -222,8 +223,6 @@ bar, slash commands, and `Alt+Left`/`Alt+Right` by hand.
 
 - Shared Pi chrome (header, footer, widgets, status) is last-writer-wins between
   sessions.
-- Per-tab editor drafts are not persisted across restarts (the tab set itself —
-  files, names, active tab — is restored; see `restoreTabs`).
 - `Alt+Left` / `Alt+Right` shadow Pi editor word movement only while two or more
   tabs are open; with a single tab the keys pass through to the editor.
 - Tab-name truncation is single-line: `renderTabPill` truncates only the name to

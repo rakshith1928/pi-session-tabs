@@ -86,7 +86,7 @@ A native TUI strip is rendered above Pi's header **only while two or more tabs a
 - **Idle / running / needs-attention** tabs show a glyph: `○` idle, `●` running, `⚠` needs attention.
 - Tab widths follow the session name (plus the status glyph), and long names truncate safely — only the name ever truncates, the caps and glyph always survive — so the strip always fits the terminal.
 - Tabs start from the name you give them (or a `tab N` placeholder). Unnamed tabs are auto-titled ChatGPT-style: after the first assistant reply, one small LLM call on the session's current model names the conversation (a title derived from your first message is used if that call fails). Explicit names (via `/tabnew <name>` or `/tabrename`) are kept, and titles persist with the session across restarts.
-- **Across restarts** the tab set is restored per project — tabs, names, and the active tab come back; per-tab editor drafts are not persisted.
+- **Across restarts** the tab set is restored per project — tabs, names, drafts, and the active tab come back.
 - Closing the last tab is disabled.
 
 > **No mouse, no focus mode.** Pi 0.84.1 exposes no native click or hover API for extension widgets, so tabs are keyboard-driven (`Alt+Left` / `Alt+Right` and the `/tab*` commands). Click-to-switch is a deferred future enhancement.

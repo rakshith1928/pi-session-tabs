@@ -86,9 +86,9 @@ derived from your first message is used instead). The title is persisted with
 the session, so it also shows in Pi's terminal title and session selector and
 survives restarts. The initial foreground tab is always labeled `Main`.
 
-Across restarts the tab set is restored per project: tabs, names, and the active
-tab come back (Pi re-opens each tab's session file), and the tab you were on is
-reactivated. Per-tab editor drafts are not persisted. If you start with
+Across restarts the tab set is restored per project: tabs, names, drafts, and
+the active tab come back (Pi re-opens each tab's session file), and the tab
+you were on is reactivated. If you start with
 `pi --continue` inside a previously saved conversation, that tab is recognized
 and not duplicated.
 
@@ -113,8 +113,7 @@ and not duplicated.
 ## Limitations
 
 See `README.md` → *Known limitations* for the full list. Highlights: shared Pi
-chrome is last-writer-wins, per-tab editor drafts are not persisted across
-restarts (tabs and names are), and mouse interaction is deferred.
+chrome is last-writer-wins and mouse interaction is deferred.
 
 ## For contributors
 
