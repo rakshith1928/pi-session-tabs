@@ -295,7 +295,8 @@ export class TabManager {
     // Adopt the existing foreground Pi AgentSession as the single initial tab.
     // No new session is created here; the tab is labeled "Main" and Pi's own
     // session name/transcript/editor are left untouched, so normal startup
-    // behavior is unchanged. Only /tabnew creates an additional session/tab.
+    // behavior is unchanged. Additional tabs are created only via /tabnew or
+    // /tabfork.
     manager.addTab(session, { name: "Main", draft: mode.editor?.getText?.() ?? "", boundBefore: true });
 
     manager.setBar(
@@ -308,7 +309,7 @@ export class TabManager {
       }),
     );
 
-    // Tab commands (/tabnew, /tabclose, /tabrename) are registered as Pi slash
+    // Tab commands (/tabnew, /tabfork, /tabclose, /tabrename) are registered as Pi slash
     // commands in commands.mjs via pi.registerCommand. Pi dispatches them through
     // prompt() -> _tryExecuteExtensionCommand, so we no longer intercept onSubmit
     // here (doing so would preempt that path and make the registered handler dead).

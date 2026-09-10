@@ -13,7 +13,7 @@ controller.tui = { Container, HStack };
 void checkVersion();
 
 // Phase B — per-session factory (extension contract requires a default export).
-// Register /tabnew, /tabclose and /tabrename as Pi slash commands so they appear
+// Register /tabnew, /tabfork, /tabclose and /tabrename as Pi slash commands so they appear
 // in command autocomplete with descriptions and dispatch through Pi's normal
 // command path (handled in commands.mjs + controller.mjs).
 export default function piSessionTabs(pi: any) {

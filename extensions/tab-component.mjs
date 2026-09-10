@@ -11,8 +11,9 @@ import { visibleWidth, truncateToWidth } from "@earendil-works/pi-tui";
  *   glyph always survive, so a shrunk tab still shows its state.
  *
  * Pi 0.84.1 `Component`s are render-only (no `onClick`), so the strip is
- * informational only: tabs are created/closed via `/tabnew` / `/tabclose`
- * and cycled with Alt+Left / Alt+Right (no + / x control by design).
+ * informational only: tabs are created via `/tabnew` / `/tabfork`, closed via
+ * `/tabclose`, renamed via `/tabrename`, and cycled with Alt+Left / Alt+Right
+ * (no + / x control by design).
  *
  * `theme` is Pi's interactive `Theme` (fg/bg/bold verified in 0.84.1).
  */
